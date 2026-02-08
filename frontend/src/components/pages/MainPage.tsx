@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction } from "react";
 import { Button, Col, Container, Row } from "react-bootstrap";
 import MultiSelectPage from "./MultiSelectPage";
-import type { PageType, SelectionState } from "../../../common/types";
+import type { PageType, SelectionState } from "../../../../common/types";
 
 type Props = {
   selections: SelectionState;

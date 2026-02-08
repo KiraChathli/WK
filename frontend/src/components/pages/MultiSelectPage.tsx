@@ -6,9 +6,9 @@ import {
   takeResults,
   throwInResults,
   type PageType,
-} from "../../../common/types";
-import DeliveryPositionMultiSelect from "./DeliveryPositionMultiSelect";
-import MultiSelect from "./MultiSelect";
+} from "../../../../common/types";
+import DeliveryPositionMultiSelect from "../common/DeliveryPositionMultiSelect";
+import MultiSelect from "../common/MultiSelect";
 
 type Props = {
   pageType: PageType;

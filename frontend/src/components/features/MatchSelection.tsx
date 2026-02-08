@@ -6,7 +6,6 @@ interface MatchSelectionProps {
   initialMatchNumber?: number;
   onConfirm: (date: string, matchNumber: number) => void;
   onCancel?: () => void;
-  isOverlay?: boolean;
 }
 
 const MatchSelection = ({

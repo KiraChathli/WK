@@ -1,7 +1,7 @@
 import { Button, Card, Col, Container, Row } from "react-bootstrap";
 import { PencilSquare } from "react-bootstrap-icons";
-import type { PageType, SelectionState } from "../../../common/types";
-import { PAGE_LABELS } from "../utils";
+import type { PageType, SelectionState } from "../../../../common/types";
+import { PAGE_LABELS } from "../../utils";
 
 type Props = {
   selections: SelectionState;

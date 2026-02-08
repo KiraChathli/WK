@@ -1,7 +1,7 @@
 
 import { Button, Navbar } from "react-bootstrap";
-import StepProgress from "./StepProgress";
-import type { OverCount, PageType, SelectionState } from "../../../common/types";
+import StepProgress from "../features/StepProgress";
+import type { OverCount, PageType, SelectionState } from "../../../../common/types";
 
 interface HeaderProps {
     isSignedIn: boolean;
@@ -9,11 +9,12 @@ interface HeaderProps {
     visiblePages: PageType[];
     selections: SelectionState;
     currentStepIndex: number;
-    overCount: OverCount;
+    overCount?: OverCount;
     matchName: string;
     onLogout: () => void;
     onStepClick: (index: number) => void;
     onEditMatch: () => void;
+    showProgress?: boolean;
 }
 
 const Header = ({
@@ -26,7 +27,8 @@ const Header = ({
     matchName,
     onLogout,
     onStepClick,
-    onEditMatch
+    onEditMatch,
+    showProgress = true
 }: HeaderProps) => {
     if (!isSignedIn) return null;
 
@@ -56,7 +58,7 @@ const Header = ({
                     </Button>
                 </Navbar.Collapse>
             </Navbar>
-            {!isSummary && (
+            {!isSummary && showProgress && (
                 <StepProgress
                     visiblePages={visiblePages}
                     selections={selections}

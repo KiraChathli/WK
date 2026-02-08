@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { PageType, SelectionState } from "../../../common/types";
+import type { PageType, SelectionState } from "../../../../common/types";
 import { ChevronRight } from 'react-bootstrap-icons';
-import { PAGE_LABELS } from "../utils";
+import { PAGE_LABELS } from "../../utils";
 
 type Props = {
   visiblePages: PageType[];
