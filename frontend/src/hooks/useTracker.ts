@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { initGoogleClient, logBallToSheet, readSheet, signIn, signOut } from "../api/sheets";
+import { initGoogleClient, logBallToSheet, readBallData, signIn, signOut } from "../api/sheets";
 import type { BallEntry, OverCount, PageType, SelectionState } from "../../../common/types";
 import { selectionStateToBallEntry } from "../utils";
 
@@ -47,7 +47,7 @@ export const useTracker = () => {
   const [matchNumber, setMatchNumber] = useState(1);
   const [isMatchSelected, setIsMatchSelected] = useState(false);
 
-  const matchName = `${matchDate}_${matchNumber}`;
+  const matchId = `${matchDate} - Match ${matchNumber}`;
 
   const formatMatchDisplay = (dateStr: string, matchNum: number) => {
     try {
@@ -63,7 +63,7 @@ export const useTracker = () => {
 
       return `${day}${getOrdinalSuffix(day)} ${month} - Match ${matchNum}`;
     } catch {
-      return matchName;
+      return matchId;
     }
   };
 
@@ -76,7 +76,7 @@ export const useTracker = () => {
   useEffect(() => {
     if (isSignedIn && isMatchSelected) {
       // Fetch data for the selected match
-      readSheet(matchName).then((entries) => {
+      readBallData(matchId).then((entries) => {
         if (entries.length > 0) {
           const lastEntry = entries[entries.length - 1];
           // Ensure we have a valid position
@@ -98,7 +98,7 @@ export const useTracker = () => {
         }
       }).catch(console.error);
     }
-  }, [isSignedIn, isMatchSelected, matchName]);
+  }, [isSignedIn, isMatchSelected, matchId]);
 
   // Determine which pages to show based on take result
   const getVisiblePages = (): PageType[] => {
@@ -171,7 +171,7 @@ export const useTracker = () => {
     console.log("Logging ball entry", newEntry);
 
     try {
-      await logBallToSheet(newEntry, matchName);
+      await logBallToSheet(newEntry, matchId);
 
       // Determine next state
       const futureOverCount = getNextOverCount(nextOverCount);
@@ -214,6 +214,7 @@ export const useTracker = () => {
       // Match State
       isMatchSelected,
       matchDisplayName,
+      matchId,
       matchDate,
       matchNumber
     },

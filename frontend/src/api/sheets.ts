@@ -81,8 +81,13 @@ export const signOut = () => {
 export const logBallToSheet = async (entry: BallEntry, sheetName: string) =>
   await utils.logBallToSheet(entry, gapi.client.sheets, sheetName);
 
-export const readSheet = async (sheetName: string): Promise<BallEntry[]> =>
-  await utils.readSheet(gapi.client.sheets, sheetName);
+export const readBallData = async (sheetName: string): Promise<BallEntry[]> =>
+  await utils.readBallData(gapi.client.sheets, sheetName);
+
+export const readMatchInfo = async (sheetName: string) =>
+    await utils.readMatchInfo(gapi.client.sheets, sheetName);
+
+export const getColumnLetter = utils.getColumnLetter;
 
 /**
  * Fetches basic profile info (email, name) using the access token

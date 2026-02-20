@@ -22,6 +22,7 @@ const App = () => {
     isSummary,
     isMatchSelected,
     matchDisplayName,
+    matchId,
     matchDate,
     matchNumber
   } = state;
@@ -98,7 +99,7 @@ const App = () => {
                     } />
                     <Route path="/visualise" element={
                         <VisualisePage
-                            matchName={matchDisplayName}
+                            matchId={matchId}
                             onEditMatch={() => setIsMatchSelected(false)}
                             isSignedIn={isSignedIn ?? false}
                             visiblePages={visiblePages}

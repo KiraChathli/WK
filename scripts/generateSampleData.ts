@@ -4,7 +4,8 @@ import { GOOGLE_API_SCOPE } from "../common/consts.ts";
 import type {
   BallEntry,
   BowlerType,
-  OutcomeDetails,
+  CollectionDifficulty,
+  ErrorReason,
   TakeResult,
 } from "../common/types.ts";
 import {
@@ -49,22 +50,25 @@ const generateDummyRows = (): BallEntry[] => {
 
     Array.from({ length: OVER_LENGTH }, (_, ballIndex) => {
       const takeResult: TakeResult = utils.getRandomElement(takeResults);
-      let outcomeDetails: OutcomeDetails = utils.getRandomElement(errorReasons);
+      let collectionDifficulty: CollectionDifficulty | undefined;
+      let errorReason: ErrorReason | undefined;
 
-      if (takeResult === "No touch") {
-        outcomeDetails = undefined;
-      } else if (["Clean take", "Catch", "Stumping"].includes(takeResult)) {
-        outcomeDetails = utils.getRandomElement(collectionDifficulties);
+      if (["Clean take", "Catch", "Stumping"].includes(takeResult)) {
+        collectionDifficulty = utils.getRandomElement(collectionDifficulties);
+      } else if (takeResult !== "No touch") {
+        errorReason = utils.getRandomElement(errorReasons);
       }
+
       timestamp = addMinutes(timestamp, POST_BALL_DELAY);
 
       const entry: BallEntry = {
         timestamp,
         overCount: { over: i, ball: ballIndex + 1 },
         bowlerType,
-        deliveryPosition: utils.getRandomElement(deliveryPositions),
-        takeResult: utils.getRandomElement(takeResults),
-        outcomeDetails,
+        deliveryPosition: utils.getRandomElement(deliveryPositions) as any,
+        takeResult,
+        collectionDifficulty,
+        errorReason,
         throwInResult: utils.getRandomElement(throwInResults),
       };
 

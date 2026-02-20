@@ -38,6 +38,14 @@ export const takeResults = [
 ] as const;
 export type TakeResult = (typeof takeResults)[number];
 
+export const successfulTakeResults = [
+  "Clean take",
+  "Catch",
+  "Stumping",
+] as const;
+export type SuccessfulTakeResult = (typeof successfulTakeResults)[number];
+
+
 // 4. Outcome Details (Difficulty & Reasons)
 export const collectionDifficulties = ["Regulation", "Difficult"] as const;
 export type CollectionDifficulty = (typeof collectionDifficulties)[number];
@@ -53,7 +61,7 @@ export const errorReasons = [
 ] as const;
 export type ErrorReason = (typeof errorReasons)[number];
 
-export type OutcomeDetails = CollectionDifficulty | ErrorReason | undefined;
+
 
 // 5. Throw-ins
 export const throwInResults = [
@@ -64,6 +72,11 @@ export const throwInResults = [
 ] as const;
 export type ThrowInResult = (typeof throwInResults)[number];
 
+export const successfulThrowInResults = [
+  "Clean",
+] as const;
+export type SuccessfulThrowInResult = (typeof successfulThrowInResults)[number];
+
 export const SHEET_HEADERS = [
     "Timestamp",
     "Over",
@@ -71,7 +84,8 @@ export const SHEET_HEADERS = [
     "Bowler",
     "Delivery",
     "Take",
-    "Outcome",
+    "Collection Difficulty",
+    "Error Reason",
     "Throw In"
 ] as const;
 
@@ -86,7 +100,8 @@ export type BallEntry = {
   bowlerType: BowlerType;
   deliveryPosition: DeliveryPosition;
   takeResult: TakeResult;
-  outcomeDetails: OutcomeDetails;
+  collectionDifficulty: CollectionDifficulty | undefined;
+  errorReason: ErrorReason | undefined;
   throwInResult: ThrowInResult | undefined;
 };
 
@@ -98,6 +113,20 @@ export type PageType =
   | "error"
   | "throwIn";
 
+
 export type SelectionState = {
   [K in PageType]: string;
 };
+
+export interface MatchInfo {
+    [key: string]: string;
+}
+
+export interface MatchStats {
+    [key: string]: string;
+}
+
+export interface SheetMetadata {
+    info: MatchInfo;
+    stats: MatchStats;
+}

@@ -29,9 +29,9 @@ export const selectionStateToBallEntry = (
   bowlerType: selections.bowler as BowlerType,
   deliveryPosition: selections.delivery as DeliveryPosition,
   takeResult: selections.take as TakeResult,
-  outcomeDetails:
-    (selections.collection as CollectionDifficulty) ||
-    (selections.error as ErrorReason),
+  collectionDifficulty:
+    (selections.collection as CollectionDifficulty) || undefined,
+  errorReason: (selections.error as ErrorReason) || undefined,
   throwInResult: selections.throwIn as ThrowInResult,
 });
 
