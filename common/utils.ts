@@ -1,5 +1,8 @@
 import {
   type BallEntry,
+  type MatchAggregateData,
+  type AggregateChartData,
+  type AggregateAverages,
   SHEET_HEADERS,
   type SheetMetadata,
   successfulTakeResults,
@@ -278,5 +281,182 @@ export const getEnvVar = (key: string): string => {
     throw new Error(`Environment variable ${key} is not set.`);
   }
   return value;
+};
+
+/**
+ * Lists all sheet names in the spreadsheet that match the match naming convention,
+ * sorted reverse-chronologically (most recent first).
+ */
+export const listSheetNames = async (
+    googleSheetsApi: any
+): Promise<string[]> => {
+    const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+    const response = await googleSheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: "sheets.properties.title",
+    });
+
+    const sheets = response.result
+        ? response.result.sheets
+        : response.data.sheets;
+
+    if (!sheets) return [];
+
+    return sheets
+        .map((s: any) => s.properties.title)
+        .filter((title: string) => /^\d{4}-\d{2}-\d{2} - Match \d+$/.test(title))
+        .sort()
+        .reverse(); // Most recent first
+};
+
+/**
+ * Converts a sheet name like "2025-02-20 - Match 1" to a short label like "20 Feb #1"
+ */
+export const formatShortMatchLabel = (sheetName: string): string => {
+    const match = sheetName.match(/^(\d{4})-(\d{2})-(\d{2}) - Match (\d+)$/);
+    if (!match) return sheetName;
+    const [, , monthStr, day, num] = match;
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${parseInt(day)} ${months[parseInt(monthStr) - 1]} #${num}`;
+};
+
+/**
+ * Computes aggregate chart data from an array of match data.
+ * Pure function — no side effects, no API calls.
+ */
+export const computeAggregateStats = (
+    matches: MatchAggregateData[]
+): AggregateChartData => {
+    // 1. Build per-match trend data
+    const trendData = matches.map((m) => ({
+        label: formatShortMatchLabel(m.sheetName),
+        cleanTakesPct: m.stats["Clean Takes %"] ? parseFloat(m.stats["Clean Takes %"]) : null,
+        cleanThrowInsPct: m.stats["Clean Throw Ins %"] ? parseFloat(m.stats["Clean Throw Ins %"]) : null,
+    }));
+
+    // 2. Flatten all balls across matches
+    const allBalls = matches.flatMap((m) => m.balls);
+
+    // 3. Compute averages
+    const averages = computeAverages(trendData, allBalls);
+
+    // 4. Error reason breakdown
+    const errorCounts = new Map<string, number>();
+    for (const ball of allBalls) {
+        if (ball.errorReason) {
+            errorCounts.set(ball.errorReason, (errorCounts.get(ball.errorReason) || 0) + 1);
+        }
+    }
+    const errorReasonBreakdown = Array.from(errorCounts.entries())
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count);
+
+    // 5. Takes by bowler type
+    const bowlerGroups = new Map<string, { clean: number; errors: number; total: number }>();
+    for (const ball of allBalls) {
+        if (!bowlerGroups.has(ball.bowlerType)) {
+            bowlerGroups.set(ball.bowlerType, { clean: 0, errors: 0, total: 0 });
+        }
+        const group = bowlerGroups.get(ball.bowlerType)!;
+        group.total++;
+        if (successfulTakeResults.includes(ball.takeResult as any)) {
+            group.clean++;
+        } else if (ball.takeResult !== "No touch") {
+            group.errors++;
+        }
+    }
+    const takesByBowlerType = Array.from(bowlerGroups.entries())
+        .map(([bowlerType, { clean, errors, total }]) => ({
+            bowlerType,
+            cleanTakes: clean,
+            errors,
+            total,
+            cleanPct: total > 0 ? Math.round((clean / total) * 1000) / 10 : 0,
+        }))
+        .sort((a, b) => b.total - a.total);
+
+    // 6. Collection difficulty ratio
+    let regulation = 0;
+    let difficult = 0;
+    for (const ball of allBalls) {
+        if (ball.collectionDifficulty === "Regulation") regulation++;
+        else if (ball.collectionDifficulty === "Difficult") difficult++;
+    }
+    const collectionDifficultyRatio = { regulation, difficult };
+
+    // 7. Delivery position heatmap
+    const positionGroups = new Map<string, { total: number; clean: number }>();
+    for (const ball of allBalls) {
+        if (!positionGroups.has(ball.deliveryPosition)) {
+            positionGroups.set(ball.deliveryPosition, { total: 0, clean: 0 });
+        }
+        const group = positionGroups.get(ball.deliveryPosition)!;
+        group.total++;
+        if (successfulTakeResults.includes(ball.takeResult as any)) {
+            group.clean++;
+        }
+    }
+    const deliveryPositionHeatmap = Array.from(positionGroups.entries())
+        .map(([position, { total, clean }]) => ({
+            position,
+            total,
+            cleanTakes: clean,
+            cleanPct: total > 0 ? Math.round((clean / total) * 1000) / 10 : 0,
+        }));
+
+    // 8. Take result breakdown
+    const takeResultCounts = new Map<string, number>();
+    for (const ball of allBalls) {
+        takeResultCounts.set(ball.takeResult, (takeResultCounts.get(ball.takeResult) || 0) + 1);
+    }
+    const takeResultBreakdown = Array.from(takeResultCounts.entries())
+        .map(([result, count]) => ({ result, count }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+        trendData,
+        averages,
+        errorReasonBreakdown,
+        takesByBowlerType,
+        collectionDifficultyRatio,
+        deliveryPositionHeatmap,
+        takeResultBreakdown,
+    };
+};
+
+/** Computes average metrics across all matches */
+const computeAverages = (
+    trendData: Array<{ cleanTakesPct: number | null; cleanThrowInsPct: number | null }>,
+    allBalls: BallEntry[]
+): AggregateAverages => {
+    // Average Clean Takes %
+    const validTakes = trendData.filter((d) => d.cleanTakesPct !== null).map((d) => d.cleanTakesPct!);
+    const cleanTakesPct = validTakes.length > 0
+        ? Math.round((validTakes.reduce((a, b) => a + b, 0) / validTakes.length) * 10) / 10
+        : null;
+
+    // Average Clean Throw Ins %
+    const validThrowIns = trendData.filter((d) => d.cleanThrowInsPct !== null).map((d) => d.cleanThrowInsPct!);
+    const cleanThrowInsPct = validThrowIns.length > 0
+        ? Math.round((validThrowIns.reduce((a, b) => a + b, 0) / validThrowIns.length) * 10) / 10
+        : null;
+
+    // Error rate: balls with errors / total balls (excluding "No touch")
+    const touchedBalls = allBalls.filter((b) => b.takeResult !== "No touch");
+    const errorBalls = touchedBalls.filter(
+        (b) => !successfulTakeResults.includes(b.takeResult as any)
+    );
+    const errorRate = touchedBalls.length > 0
+        ? Math.round((errorBalls.length / touchedBalls.length) * 1000) / 10
+        : null;
+
+    // Regulation %: regulation / (regulation + difficult)
+    const withDifficulty = allBalls.filter((b) => b.collectionDifficulty);
+    const regulationCount = withDifficulty.filter((b) => b.collectionDifficulty === "Regulation").length;
+    const regulationPct = withDifficulty.length > 0
+        ? Math.round((regulationCount / withDifficulty.length) * 1000) / 10
+        : null;
+
+    return { cleanTakesPct, cleanThrowInsPct, errorRate, regulationPct };
 };
 

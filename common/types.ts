@@ -130,3 +130,56 @@ export interface SheetMetadata {
     info: MatchInfo;
     stats: MatchStats;
 }
+
+// Aggregate Visualisation Types
+
+/** A single match's stats + ball data bundled for aggregate analysis */
+export type MatchAggregateData = {
+    sheetName: string;       // e.g., "2025-02-20 - Match 1"
+    date: string;            // e.g., "2025-02-20"
+    matchNumber: number;
+    stats: MatchStats;
+    balls: BallEntry[];
+};
+
+/** Range options for the match selector dropdown */
+export type MatchRangeOption = 5 | 10 | 20 | "all";
+
+/** Pre-computed averages across the selected range */
+export type AggregateAverages = {
+    cleanTakesPct: number | null;
+    cleanThrowInsPct: number | null;
+    errorRate: number | null;
+    regulationPct: number | null;
+};
+
+/** Pre-computed aggregate stats for chart consumption */
+export type AggregateChartData = {
+    // Per-match trend data (for line charts)
+    trendData: Array<{
+        label: string;
+        cleanTakesPct: number | null;
+        cleanThrowInsPct: number | null;
+    }>;
+
+    // Calculated averages across the range
+    averages: AggregateAverages;
+
+    // Cross-match breakdowns
+    errorReasonBreakdown: Array<{ reason: string; count: number }>;
+    takesByBowlerType: Array<{
+        bowlerType: string;
+        cleanTakes: number;
+        errors: number;
+        total: number;
+        cleanPct: number;
+    }>;
+    collectionDifficultyRatio: { regulation: number; difficult: number };
+    deliveryPositionHeatmap: Array<{
+        position: string;
+        total: number;
+        cleanTakes: number;
+        cleanPct: number;
+    }>;
+    takeResultBreakdown: Array<{ result: string; count: number }>;
+};

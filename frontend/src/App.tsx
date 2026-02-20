@@ -102,9 +102,6 @@ const App = () => {
                             matchId={matchId}
                             onEditMatch={() => setIsMatchSelected(false)}
                             isSignedIn={isSignedIn ?? false}
-                            visiblePages={visiblePages}
-                            selections={selections}
-                            currentStepIndex={currentStepIndex}
                             onLogout={handleLogout}
                         />
                     } />

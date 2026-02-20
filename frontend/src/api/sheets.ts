@@ -87,6 +87,9 @@ export const readBallData = async (sheetName: string): Promise<BallEntry[]> =>
 export const readMatchInfo = async (sheetName: string) =>
     await utils.readMatchInfo(gapi.client.sheets, sheetName);
 
+export const listSheetNames = async (): Promise<string[]> =>
+    await utils.listSheetNames(gapi.client.sheets);
+
 export const getColumnLetter = utils.getColumnLetter;
 
 /**
