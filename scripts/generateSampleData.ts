@@ -24,31 +24,69 @@ const auth = new google.auth.GoogleAuth({
   scopes: [GOOGLE_API_SCOPE],
 });
 
-const NUM_OVERS = 20;
-const OVER_LENGTH = 6;
-const POST_BALL_DELAY = 1;
-const POST_OVER_DELAY = 5;
+// ── Configuration ──────────────────────────────────────────
+const NUM_MATCHES = 8; // Total number of match sheets to create
+const MATCHES_PER_DAY = 2; // Max matches on any single day
+const NUM_OVERS = 20; // Overs per match
+const OVER_LENGTH = 6; // Balls per over
+const POST_BALL_DELAY = 1; // Minutes between balls
+const POST_OVER_DELAY = 5; // Minutes between overs
+const START_DATE = new Date("2025-01-15"); // Date of first match
+const DAY_GAP_MIN = 2; // Min days between match days
+const DAY_GAP_MAX = 7; // Max days between match days
 
 async function populate() {
   const client = await auth.getClient();
   const sheetsApi = google.sheets({ version: "v4", auth: client as any });
 
-  const dummyData = generateDummyRows();
+  const matchSheets = generateMatchPlan();
 
-  const sheetName = utils.getEnvVar("SPREADSHEET_NAME");
-  await utils.logMultipleBallsToSheet(dummyData, sheetsApi, sheetName, true);
+  for (const { sheetName, startTime } of matchSheets) {
+    const balls = generateMatchBalls(startTime);
+    await utils.logMultipleBallsToSheet(balls, sheetsApi, sheetName, true);
+    console.log(`Created "${sheetName}" (${balls.length} balls)`);
+  }
 
-  console.log(`Successfully populated sheet with ${NUM_OVERS} overs.`);
+  console.log(`\nSuccessfully populated ${matchSheets.length} matches.`);
 }
 
-const generateDummyRows = (): BallEntry[] => {
-  let rows: BallEntry[] = [];
-  let timestamp = new Date();
-  for (let i = 0; i < NUM_OVERS; i++) {
-    // Pick a random bowler type
+/** Build a list of sheet names and start times for each match. */
+function generateMatchPlan(): { sheetName: string; startTime: Date }[] {
+  const plan: { sheetName: string; startTime: Date }[] = [];
+  let currentDate = new Date(START_DATE);
+  let matchesCreated = 0;
+
+  while (matchesCreated < NUM_MATCHES) {
+    const matchesThisDay = Math.min(
+      randomInt(1, MATCHES_PER_DAY),
+      NUM_MATCHES - matchesCreated,
+    );
+
+    for (let m = 1; m <= matchesThisDay; m++) {
+      const dateStr = formatDate(currentDate);
+      const sheetName = `${dateStr} - Match ${m}`;
+      const startTime = new Date(currentDate);
+      startTime.setHours(9 + (m - 1) * 3, 0, 0, 0);
+      plan.push({ sheetName, startTime });
+      matchesCreated++;
+    }
+
+    const gap = randomInt(DAY_GAP_MIN, DAY_GAP_MAX);
+    currentDate.setDate(currentDate.getDate() + gap);
+  }
+
+  return plan;
+}
+
+/** Generate ball entries for a single match. */
+function generateMatchBalls(startTime: Date): BallEntry[] {
+  const rows: BallEntry[] = [];
+  let timestamp = new Date(startTime);
+
+  for (let over = 0; over < NUM_OVERS; over++) {
     const bowlerType: BowlerType = utils.getRandomElement(bowlerTypes);
 
-    Array.from({ length: OVER_LENGTH }, (_, ballIndex) => {
+    for (let ball = 0; ball < OVER_LENGTH; ball++) {
       const takeResult: TakeResult = utils.getRandomElement(takeResults);
       let collectionDifficulty: CollectionDifficulty | undefined;
       let errorReason: ErrorReason | undefined;
@@ -61,24 +99,25 @@ const generateDummyRows = (): BallEntry[] => {
 
       timestamp = addMinutes(timestamp, POST_BALL_DELAY);
 
-      const entry: BallEntry = {
+      rows.push({
         timestamp,
-        overCount: { over: i, ball: ballIndex + 1 },
+        overCount: { over, ball: ball + 1 },
         bowlerType,
         deliveryPosition: utils.getRandomElement(deliveryPositions) as any,
         takeResult,
         collectionDifficulty,
         errorReason,
         throwInResult: utils.getRandomElement(throwInResults),
-      };
-
-      rows.push(entry);
-    });
+      });
+    }
 
     timestamp = addMinutes(timestamp, POST_OVER_DELAY);
   }
+
   return rows;
-};
+}
+
+// ── Helpers ────────────────────────────────────────────────
 
 const addMinutes = (date: Date, minutes: number): Date => {
   const newDate = new Date(date);
@@ -87,5 +126,15 @@ const addMinutes = (date: Date, minutes: number): Date => {
   newDate.setMilliseconds(0);
   return newDate;
 };
+
+const formatDate = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const randomInt = (min: number, max: number): number =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
 
 populate();
