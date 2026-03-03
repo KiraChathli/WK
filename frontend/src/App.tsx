@@ -9,6 +9,7 @@ import SummaryPage from "./components/pages/SummaryPage";
 import VisualisePage from "./components/pages/VisualisePage";
 import MatchSelection from "./components/features/MatchSelection";
 import { useTracker } from "./hooks/useTracker";
+import { BASE_URL } from "../../common/consts";
 
 const App = () => {
   const { state, actions } = useTracker();
@@ -39,7 +40,7 @@ const App = () => {
   } = actions;
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={BASE_URL}>
       <Container fluid className="vh-100 px-0 d-flex flex-column app-shell">
         {isSignedIn === null ? (
           <LoadingView />
