@@ -10,15 +10,6 @@ import {
 } from "../utils.ts";
 
 const CLIENT_ID = utils.getEnvVar("CLIENT_ID");
-console.log("client id", CLIENT_ID)
-
-if (typeof process !== "undefined" && process.env) {
-  console.log("Process env")
-  console.log(process.env)
-} else {
-  console.log("import meta")
-  console.log(import.meta.env)
-}
 
 let tokenClient: any;
 

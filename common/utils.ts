@@ -8,7 +8,9 @@ import {
   successfulTakeResults,
   successfulThrowInResults,
 } from "./types.ts";
-import { SHEET_EMPTY_VALUE } from "./consts.ts";
+import { SHEET_EMPTY_VALUE, SAMPLE_DATA_PREFIX } from "./consts.ts";
+
+const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Converts a 0-based column index to A1 notation letter (e.g., 0 -> A, 25 -> Z, 26 -> AA)
@@ -165,6 +167,7 @@ export const readBallData = async (
     const errorMsg = err.result?.error?.message || err.message || "";
     if (errorMsg.includes("Unable to parse range") || err.status === 400) {
         // Sheet doesn't exist yet, return empty
+        console.log(`Ball data for sheet ${sheetName} not found. Returning empty.`);
         return [];
     }
     throw err;
@@ -217,7 +220,12 @@ export const readMatchInfo = async (
         return { info, stats };
 
     } catch (err: any) {
-        console.error("Error reading match info:", err);
+        const errorMsg = err.result?.error?.message || err.message || "";
+        if (errorMsg.includes("Unable to parse range") || err.status === 400) {
+            console.log(`Match info for sheet ${sheetName} not found. Returning empty.`);
+            return { info: {}, stats: {} };
+        }
+        console.error(`Error reading match info for sheet ${sheetName}:`, err);
         return { info: {}, stats: {} };
     }
 };
@@ -302,9 +310,12 @@ export const listSheetNames = async (
 
     if (!sheets) return [];
 
+    const escapedPrefix = escapeRegExp(SAMPLE_DATA_PREFIX);
+    const regex = new RegExp(`^(?:${escapedPrefix} )?\\d{4}-\\d{2}-\\d{2} - Match \\d+$`);
+
     return sheets
         .map((s: any) => s.properties.title)
-        .filter((title: string) => /^\d{4}-\d{2}-\d{2} - Match \d+$/.test(title))
+        .filter((title: string) => regex.test(title))
         .sort()
         .reverse(); // Most recent first
 };
@@ -313,11 +324,14 @@ export const listSheetNames = async (
  * Converts a sheet name like "2025-02-20 - Match 1" to a short label like "20 Feb #1"
  */
 export const formatShortMatchLabel = (sheetName: string): string => {
-    const match = sheetName.match(/^(\d{4})-(\d{2})-(\d{2}) - Match (\d+)$/);
+    const escapedPrefix = escapeRegExp(SAMPLE_DATA_PREFIX);
+    const regex = new RegExp(`^(?:${escapedPrefix} )?(\\d{4})-(\\d{2})-(\\d{2}) - Match (\\d+)$`);
+    const match = sheetName.match(regex);
     if (!match) return sheetName;
     const [, , monthStr, day, num] = match;
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${parseInt(day)} ${months[parseInt(monthStr) - 1]} #${num}`;
+    const prefix = sheetName.startsWith(SAMPLE_DATA_PREFIX) ? "[S] " : "";
+    return `${prefix}${parseInt(day)} ${months[parseInt(monthStr) - 1]} #${num}`;
 };
 
 /**

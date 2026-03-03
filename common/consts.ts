@@ -6,3 +6,5 @@ export const GOOGLE_API_DISCOVERY =
 export const SHEET_EMPTY_VALUE = "-";
 
 export const BASE_URL = "/WK";
+
+export const SAMPLE_DATA_PREFIX = "[SAMPLE]";

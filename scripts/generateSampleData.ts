@@ -1,6 +1,6 @@
 import * as dotenv from "dotenv";
 import { google } from "googleapis";
-import { GOOGLE_API_SCOPE } from "../common/consts.ts";
+import { GOOGLE_API_SCOPE, SAMPLE_DATA_PREFIX } from "../common/consts.ts";
 import type {
   BallEntry,
   BowlerType,
@@ -64,7 +64,7 @@ function generateMatchPlan(): { sheetName: string; startTime: Date }[] {
 
     for (let m = 1; m <= matchesThisDay; m++) {
       const dateStr = formatDate(currentDate);
-      const sheetName = `${dateStr} - Match ${m}`;
+      const sheetName = `${SAMPLE_DATA_PREFIX} ${dateStr} - Match ${m}`;
       const startTime = new Date(currentDate);
       startTime.setHours(9 + (m - 1) * 3, 0, 0, 0);
       plan.push({ sheetName, startTime });
