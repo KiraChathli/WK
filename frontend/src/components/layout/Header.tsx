@@ -1,7 +1,7 @@
 
 import { Button, Navbar } from "react-bootstrap";
 import StepProgress from "../features/StepProgress";
-import type { OverCount, PageType, SelectionState } from "../../../../common/types";
+import type { OverCount, PageType, SelectionState, BallEntry } from "../../../../common/types";
 
 interface HeaderProps {
     isSignedIn: boolean;
@@ -10,6 +10,7 @@ interface HeaderProps {
     selections: SelectionState;
     currentStepIndex: number;
     overCount?: OverCount;
+    currentOverBalls?: BallEntry[];
     matchName: string;
     onLogout: () => void;
     onStepClick: (index: number) => void;
@@ -24,6 +25,7 @@ const Header = ({
     selections,
     currentStepIndex,
     overCount,
+    currentOverBalls,
     matchName,
     onLogout,
     onStepClick,
@@ -31,6 +33,9 @@ const Header = ({
     showProgress = true
 }: HeaderProps) => {
     if (!isSignedIn) return null;
+
+    const validBallsCount = (currentOverBalls || []).filter((b) => !b.extraType).length;
+    const remainingBallsCount = Math.max(0, 6 - validBallsCount);
 
     return (
         <div className="sticky-top bg-white border-bottom shadow-sm z-3">
@@ -45,9 +50,40 @@ const Header = ({
                          </Button>
                     </div>
                     {overCount && (
-                        <small className="text-muted fw-bold">
-                            {overCount.over}.{overCount.ball} Overs
-                        </small>
+                        <div className="d-flex align-items-center gap-3">
+                            <small className="text-muted fw-bold">
+                                {overCount.over}.{overCount.ball} Overs
+                            </small>
+                            <div className="d-flex align-items-center gap-1">
+                                {currentOverBalls?.map((ball, i) => {
+                                    if (ball.extraType) {
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center fw-bold"
+                                                style={{ width: "16px", height: "16px", fontSize: "10px" }}
+                                            >
+                                                {ball.extraType === "Wide" ? "W" : "N"}
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="rounded-circle bg-primary"
+                                            style={{ width: "16px", height: "16px" }}
+                                        />
+                                    );
+                                })}
+                                {Array.from({ length: remainingBallsCount }).map((_, i) => (
+                                    <div
+                                        key={`rem-${i}`}
+                                        className="rounded-circle border border-primary border-2"
+                                        style={{ width: "16px", height: "16px" }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
 

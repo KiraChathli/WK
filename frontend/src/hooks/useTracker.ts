@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { initGoogleClient, logBallToSheet, readBallData, signIn, signOut } from "../api/sheets";
-import type { BallEntry, OverCount, PageType, SelectionState } from "../../../common/types";
+import type { BallEntry, PageType, SelectionState, ExtraType } from "../../../common/types";
 import { selectionStateToBallEntry } from "../utils";
 
 const EMPTY_SELECTIONS: SelectionState = {
@@ -13,17 +13,7 @@ const EMPTY_SELECTIONS: SelectionState = {
   throwIn: "",
 };
 
-// TODO: handle no-balls
-const getNextOverCount = (current: OverCount): OverCount => {
-  let { over, ball } = current;
-  if (ball >= 6) {
-    over += 1;
-    ball = 1;
-  } else {
-    ball += 1;
-  }
-  return { over, ball };
-};
+
 
 export const useTracker = () => {
   const [selections, setSelections] = useState<SelectionState>(EMPTY_SELECTIONS);
@@ -36,7 +26,9 @@ export const useTracker = () => {
   });
 
   // Tracking State
-  const [lastOverCount, setLastOverCount] = useState<OverCount>({ over: 0, ball: 0 });
+  const [currentOver, setCurrentOver] = useState(0);
+  const [currentOverBalls, setCurrentOverBalls] = useState<BallEntry[]>([]);
+  const [extraType, setExtraType] = useState<ExtraType | undefined>(undefined);
 
   // Navigation State
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -81,20 +73,31 @@ export const useTracker = () => {
           const lastEntry = entries[entries.length - 1];
           // Ensure we have a valid position
           if (lastEntry.overCount) {
-            setLastOverCount(lastEntry.overCount);
+            const lastOverNum = lastEntry.overCount.over;
+            const ballsInLastOver = entries.filter(e => e.overCount.over === lastOverNum);
+            const validBalls = ballsInLastOver.filter(b => !b.extraType).length;
 
-            // Pre-select bowler if we are continuing an over
-            const nextCnt = getNextOverCount(lastEntry.overCount);
-            if (nextCnt.ball > 1 && lastEntry.bowlerType) {
-              setSelections((prev) => ({ ...prev, bowler: lastEntry.bowlerType }));
-              setCurrentStepIndex(1); // Skip bowler selection
+            if (validBalls >= 6) {
+               // Next over
+               setCurrentOver(lastOverNum + 1);
+               setCurrentOverBalls([]);
+               setSelections(EMPTY_SELECTIONS);
+               setCurrentStepIndex(0);
+            } else {
+               // Continue over
+               setCurrentOver(lastOverNum);
+               setCurrentOverBalls(ballsInLastOver);
+               setSelections((prev) => ({ ...prev, bowler: lastEntry.bowlerType }));
+               setCurrentStepIndex(1); // Skip bowler selection
             }
           }
         } else {
              // New match or empty sheet, reset counters
-             setLastOverCount({ over: 0, ball: 0 });
+             setCurrentOver(0);
+             setCurrentOverBalls([]);
              setSelections(EMPTY_SELECTIONS);
              setCurrentStepIndex(0);
+             setExtraType(undefined);
         }
       }).catch(console.error);
     }
@@ -165,28 +168,32 @@ export const useTracker = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const nextOverCount = getNextOverCount(lastOverCount);
-    const newEntry: BallEntry = selectionStateToBallEntry(selections, nextOverCount);
+    const nextOverCount = { over: currentOver, ball: currentOverBalls.filter(b => !b.extraType).length + 1 };
+    const newEntry: BallEntry = selectionStateToBallEntry(selections, nextOverCount, extraType);
 
     console.log("Logging ball entry", newEntry);
 
     try {
       await logBallToSheet(newEntry, matchId);
 
-      // Determine next state
-      const futureOverCount = getNextOverCount(nextOverCount);
-      const isSameOver = futureOverCount.ball > 1;
+      const updatedBalls = [...currentOverBalls, newEntry];
+      const validBalls = updatedBalls.filter(b => !b.extraType).length;
 
-      if (isSameOver) {
-        // Keep bowler, reset others
-        setSelections({ ...EMPTY_SELECTIONS, bowler: selections.bowler });
-        setCurrentStepIndex(1); // Skip bowler selection
+      if (validBalls >= 6) {
+        // Start next over
+        setCurrentOver(currentOver + 1);
+        setCurrentOverBalls([]);
+        setSelections({ ...EMPTY_SELECTIONS });
+        setCurrentStepIndex(0);
+        setExtraType(undefined);
       } else {
-        setSelections({ ...EMPTY_SELECTIONS }); // Reset all
-        setCurrentStepIndex(0); // Start from beginning
+        // Continue over
+        setCurrentOverBalls(updatedBalls);
+        setSelections({ ...EMPTY_SELECTIONS, bowler: selections.bowler });
+        setCurrentStepIndex(1);
+        setExtraType(undefined);
       }
 
-      setLastOverCount(nextOverCount); // Update local state
       setToast({ show: true, message: "Entry saved successfully!", variant: "success" });
     } catch (err) {
       console.error(err);
@@ -204,13 +211,15 @@ export const useTracker = () => {
   return {
     state: {
       selections,
+      extraType,
+      currentOverBalls,
       isSignedIn,
       toast,
       isSubmitting,
       currentStepIndex,
       visiblePages,
       isSummary,
-      currentOverCount: getNextOverCount(lastOverCount),
+      currentOverCount: { over: currentOver, ball: currentOverBalls.filter(b => !b.extraType).length + 1 },
       // Match State
       isMatchSelected,
       matchDisplayName,
@@ -220,6 +229,7 @@ export const useTracker = () => {
     },
     actions: {
       setSelections,
+      setExtraType,
       setLastUpdatedPage,
       goToStep,
       handleSubmit,

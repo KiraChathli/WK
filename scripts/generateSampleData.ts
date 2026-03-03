@@ -86,10 +86,19 @@ function generateMatchBalls(startTime: Date): BallEntry[] {
   for (let over = 0; over < NUM_OVERS; over++) {
     const bowlerType: BowlerType = utils.getRandomElement(bowlerTypes);
 
-    for (let ball = 0; ball < OVER_LENGTH; ball++) {
+    let validBalls = 0;
+    while (validBalls < OVER_LENGTH) {
       const takeResult: TakeResult = utils.getRandomElement(takeResults);
       let collectionDifficulty: CollectionDifficulty | undefined;
       let errorReason: ErrorReason | undefined;
+
+      let extraType: any;
+      const r = Math.random();
+      if (r < 0.05) extraType = "Wide";
+      else if (r < 0.07) extraType = "No ball";
+      else {
+        validBalls++;
+      }
 
       if (["Clean take", "Catch", "Stumping"].includes(takeResult)) {
         collectionDifficulty = utils.getRandomElement(collectionDifficulties);
@@ -101,13 +110,14 @@ function generateMatchBalls(startTime: Date): BallEntry[] {
 
       rows.push({
         timestamp,
-        overCount: { over, ball: ball + 1 },
+        overCount: { over, ball: extraType ? validBalls + 1 : validBalls },
         bowlerType,
         deliveryPosition: utils.getRandomElement(deliveryPositions) as any,
         takeResult,
         collectionDifficulty,
         errorReason,
         throwInResult: utils.getRandomElement(throwInResults),
+        extraType
       });
     }
 

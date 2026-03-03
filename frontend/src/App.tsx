@@ -25,7 +25,9 @@ const App = () => {
     matchDisplayName,
     matchId,
     matchDate,
-    matchNumber
+    matchNumber,
+    currentOverBalls,
+    extraType,
   } = state;
   const {
     setSelections,
@@ -36,7 +38,8 @@ const App = () => {
     signIn,
     hideToast,
     setMatchParams,
-    setIsMatchSelected
+    setIsMatchSelected,
+    setExtraType,
   } = actions;
 
   return (
@@ -69,6 +72,7 @@ const App = () => {
                             onLogout={handleLogout}
                             onStepClick={goToStep}
                             overCount={state.currentOverCount}
+                            currentOverBalls={currentOverBalls}
                             matchName={matchDisplayName}
                             onEditMatch={() => setIsMatchSelected(false)}
                           />
@@ -82,6 +86,8 @@ const App = () => {
                                             onEdit={goToStep}
                                             onSubmit={handleSubmit}
                                             isSubmitting={isSubmitting}
+                                            extraType={extraType}
+                                            onSetExtraType={setExtraType}
                                         />
                                     ) : (
                                         <MainPage

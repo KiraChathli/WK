@@ -77,6 +77,12 @@ export const successfulThrowInResults = [
 ] as const;
 export type SuccessfulThrowInResult = (typeof successfulThrowInResults)[number];
 
+export const extraTypes = [
+  "Wide",
+  "No ball",
+] as const;
+export type ExtraType = (typeof extraTypes)[number];
+
 export const SHEET_HEADERS = [
     "Timestamp",
     "Over",
@@ -86,7 +92,8 @@ export const SHEET_HEADERS = [
     "Take",
     "Collection Difficulty",
     "Error Reason",
-    "Throw In"
+    "Throw In",
+    "Extra"
 ] as const;
 
 export type OverCount = {
@@ -103,6 +110,7 @@ export type BallEntry = {
   collectionDifficulty: CollectionDifficulty | undefined;
   errorReason: ErrorReason | undefined;
   throwInResult: ThrowInResult | undefined;
+  extraType: ExtraType | undefined;
 };
 
 export type PageType =

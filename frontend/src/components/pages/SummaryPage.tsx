@@ -1,6 +1,7 @@
-import { Button, Card, Col, Container, Row } from "react-bootstrap";
+import { Button, Card, Col, Container, Row, ButtonGroup, ToggleButton } from "react-bootstrap";
 import { PencilSquare } from "react-bootstrap-icons";
-import type { PageType, SelectionState } from "../../../../common/types";
+import type { PageType, SelectionState, ExtraType } from "../../../../common/types";
+import { extraTypes } from "../../../../common/types";
 import { PAGE_LABELS } from "../../utils";
 
 type Props = {
@@ -9,9 +10,11 @@ type Props = {
   onEdit: (index: number) => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  extraType: ExtraType | undefined;
+  onSetExtraType: (type: ExtraType | undefined) => void;
 };
 
-const SummaryPage = ({ selections, visiblePages, onEdit, onSubmit, isSubmitting = false }: Props) => {
+const SummaryPage = ({ selections, visiblePages, onEdit, onSubmit, isSubmitting = false, extraType, onSetExtraType }: Props) => {
   return (
     <Container fluid className="py-3 app-shell">
       <Row className="justify-content-center">
@@ -40,6 +43,25 @@ const SummaryPage = ({ selections, visiblePages, onEdit, onSubmit, isSubmitting 
               </Card>
             ))}
           </div>
+
+          <div className="mb-4 d-flex justify-content-center">
+            <ButtonGroup>
+              {extraTypes.map((type) => (
+                <ToggleButton
+                  key={type}
+                  id={`extra-${type.replace(/\s+/g, '-')}`}
+                  type="checkbox"
+                  value={type}
+                  variant={extraType === type ? "danger" : "outline-danger"}
+                  checked={extraType === type}
+                  onClick={() => onSetExtraType(extraType === type ? undefined : type)}
+                >
+                  {type}
+                </ToggleButton>
+              ))}
+            </ButtonGroup>
+          </div>
+
           <div className="text-center">
             <Button variant="success" size="lg" onClick={onSubmit} className="w-100" disabled={isSubmitting}>
               {isSubmitting ? "Submitting..." : "Submit Entry"}

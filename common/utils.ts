@@ -244,6 +244,7 @@ export const formatBallRow = (entry: BallEntry): string[] => {
     entry.collectionDifficulty || SHEET_EMPTY_VALUE,
     entry.errorReason || SHEET_EMPTY_VALUE,
     entry.throwInResult || SHEET_EMPTY_VALUE,
+    entry.extraType || SHEET_EMPTY_VALUE,
   ];
 };
 
@@ -258,6 +259,7 @@ export const parseBallRow = (row: string[]): BallEntry => {
     collectionDifficulty,
     errorReason,
     throwInResult,
+    extraType,
   ] = row;
 
   return {
@@ -272,6 +274,7 @@ export const parseBallRow = (row: string[]): BallEntry => {
     collectionDifficulty: collectionDifficulty === SHEET_EMPTY_VALUE ? undefined : (collectionDifficulty as any),
     errorReason: errorReason === SHEET_EMPTY_VALUE ? undefined : (errorReason as any),
     throwInResult: throwInResult === SHEET_EMPTY_VALUE ? undefined : (throwInResult as any),
+    extraType: extraType === SHEET_EMPTY_VALUE || !extraType ? undefined : (extraType as any),
   };
 };
 

@@ -9,6 +9,7 @@ import type {
   SelectionState,
   TakeResult,
   ThrowInResult,
+  ExtraType,
 } from "../../common/types";
 
 export const PAGE_LABELS: Record<PageType, string> = {
@@ -22,7 +23,8 @@ export const PAGE_LABELS: Record<PageType, string> = {
 
 export const selectionStateToBallEntry = (
   selections: SelectionState,
-  overCount: OverCount
+  overCount: OverCount,
+  extraType?: ExtraType
 ): BallEntry => ({
   timestamp: new Date(),
   overCount,
@@ -33,6 +35,7 @@ export const selectionStateToBallEntry = (
     (selections.collection as CollectionDifficulty) || undefined,
   errorReason: (selections.error as ErrorReason) || undefined,
   throwInResult: selections.throwIn as ThrowInResult,
+  extraType,
 });
 
 export const getEmailLocalStorage = () =>
