@@ -26,7 +26,8 @@ const BowlerTypeChart = ({ data }: BowlerTypeChartProps) => {
                 >
                     <XAxis
                         dataKey="bowlerType"
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 10, dy: 12 }}
+                        textAnchor="end"
                         angle={-35}
                         interval={0}
                         height={60}

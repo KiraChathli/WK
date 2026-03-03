@@ -54,7 +54,8 @@ const DeliveryPositionGrid = ({ data }: DeliveryPositionGridProps) => {
                                     className="rounded p-2 text-center"
                                     style={{
                                         backgroundColor: total > 0 ? getHeatColor(pct) : "#f8f9fa",
-                                        minHeight: "70px",
+                                        minHeight: "100px",
+                                        aspectRatio: "1 / 1",
                                         display: "flex",
                                         flexDirection: "column",
                                         justifyContent: "center",

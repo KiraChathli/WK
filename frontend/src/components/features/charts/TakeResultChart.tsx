@@ -19,7 +19,7 @@ const TakeResultChart = ({ data }: TakeResultChartProps) => {
     const height = Math.max(data.length * 40 + 20, 120);
 
     return (
-        <ChartCard title="Take Results">
+        <ChartCard title="Take Results" className="h-100">
             <ResponsiveContainer width="100%" height={height}>
                 <BarChart
                     data={data}

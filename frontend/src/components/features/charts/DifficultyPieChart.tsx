@@ -24,8 +24,8 @@ const DifficultyPieChart = ({ data }: DifficultyPieChartProps) => {
     ];
 
     return (
-        <ChartCard title="Collection Difficulty">
-            <ResponsiveContainer width="100%" height={220}>
+        <ChartCard title="Collection Difficulty" className="h-100">
+            <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                     <Pie
                         data={chartData}
@@ -44,7 +44,7 @@ const DifficultyPieChart = ({ data }: DifficultyPieChartProps) => {
                         ))}
                     </Pie>
                     <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
+                    <Legend wrapperStyle={{ fontSize: "0.8rem", paddingTop: "20px" }} />
                 </PieChart>
             </ResponsiveContainer>
         </ChartCard>
