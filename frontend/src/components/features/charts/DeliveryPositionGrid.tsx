@@ -40,7 +40,8 @@ const DeliveryPositionGrid = ({ data }: DeliveryPositionGridProps) => {
 
     return (
         <ChartCard title="Delivery Position Heatmap">
-            {rows.map((row, rowIdx) => (
+            <div className="mx-auto" style={{ maxWidth: "450px" }}>
+                {rows.map((row, rowIdx) => (
                 <Row key={rowIdx} className="g-1 mb-1">
                     {row.map((position) => {
                         const posData = posMap.get(position);
@@ -82,6 +83,7 @@ const DeliveryPositionGrid = ({ data }: DeliveryPositionGridProps) => {
                     })}
                 </Row>
             ))}
+            </div>
         </ChartCard>
     );
 };

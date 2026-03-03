@@ -13,7 +13,7 @@ const DELIVERY_POSITIONS = [
 
 const DeliveryPositionMultiSelect = ({ selectedValue, onChange }: Props) => {
   return (
-    <div className="delivery-grid">
+    <div className="delivery-grid mx-auto" style={{ maxWidth: "450px" }}>
       {DELIVERY_POSITIONS.map((row, rowIdx) => (
         <Row key={rowIdx} className="g-1 mb-1">
           {row.map((position) => {
