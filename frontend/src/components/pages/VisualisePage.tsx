@@ -125,7 +125,7 @@ const MatchTab = ({
     }
 
     return (
-        <div className="d-flex flex-column gap-4">
+        <div className="d-flex flex-column gap-4 mb-5">
             {stats.map((section) => (
                 <div key={section.title}>
                     <div className="d-flex align-items-center mb-3">

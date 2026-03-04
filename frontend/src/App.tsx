@@ -23,6 +23,7 @@ const App = () => {
     visiblePages,
     isSummary,
     isMatchSelected,
+    isMatchReady,
     matchDisplayName,
     matchId,
     matchDate,
@@ -60,6 +61,8 @@ const App = () => {
                 initialMatchNumber={matchNumber}
              />
           </div>
+        ) : !isMatchReady ? (
+          <LoadingView />
         ) : (
           <>
             <div className="flex-grow-1 d-flex flex-column overflow-hidden">

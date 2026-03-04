@@ -14,9 +14,32 @@ const EMPTY_SELECTIONS: SelectionState = {
   throwIn: "",
 };
 
+/** Parse ?match=YYYY-MM-DD-N from the URL */
+const getMatchFromUrl = (): { date: string; number: number } | null => {
+  const params = new URLSearchParams(window.location.search);
+  const match = params.get("match");
+  if (!match) return null;
+  const parts = match.match(/^(\d{4}-\d{2}-\d{2})-(\d+)$/);
+  if (!parts) return null;
+  return { date: parts[1], number: parseInt(parts[2], 10) };
+};
 
+/** Write or clear the ?match= query param without a full navigation */
+const setMatchUrlParam = (date: string, number: number) => {
+  const url = new URL(window.location.href);
+  url.searchParams.set("match", `${date}-${number}`);
+  window.history.replaceState({}, "", url.toString());
+};
+
+const clearMatchUrlParam = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("match");
+  window.history.replaceState({}, "", url.toString());
+};
 
 export const useTracker = () => {
+  const urlMatch = getMatchFromUrl();
+
   const [selections, setSelections] = useState<SelectionState>(EMPTY_SELECTIONS);
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,10 +58,10 @@ export const useTracker = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [lastUpdatedPage, setLastUpdatedPage] = useState<PageType | null>(null);
 
-  // Match State
-  const [matchDate, setMatchDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [matchNumber, setMatchNumber] = useState(1);
-  const [isMatchSelected, setIsMatchSelected] = useState(false);
+  // Match State — initialise from URL param if present
+  const [matchDate, setMatchDate] = useState(() => urlMatch?.date ?? new Date().toISOString().split("T")[0]);
+  const [matchNumber, setMatchNumber] = useState(() => urlMatch?.number ?? 1);
+  const [isMatchSelected, setIsMatchSelected] = useState(!!urlMatch);
   const [resolvedMatchId, setResolvedMatchId] = useState<string | null>(null);
   const [isSampleMatch, setIsSampleMatch] = useState(false);
 
@@ -197,6 +220,12 @@ export const useTracker = () => {
       setResolvedMatchId(null); // Reset so resolution re-runs
       setIsSampleMatch(false);
       setIsMatchSelected(true);
+      setMatchUrlParam(date, number);
+  };
+
+  const handleSetIsMatchSelected = (selected: boolean) => {
+      setIsMatchSelected(selected);
+      if (!selected) clearMatchUrlParam();
   };
 
   const handleSubmit = async () => {
@@ -257,6 +286,7 @@ export const useTracker = () => {
       currentOverCount: { over: currentOver, ball: currentOverBalls.filter(b => !b.extraType).length + 1 },
       // Match State
       isMatchSelected,
+      isMatchReady: isMatchSelected && resolvedMatchId !== null,
       matchDisplayName,
       matchId,
       matchDate,
@@ -273,7 +303,7 @@ export const useTracker = () => {
       signIn,
       hideToast: () => setToast((prev) => ({ ...prev, show: false })),
       setMatchParams,
-      setIsMatchSelected,
+      setIsMatchSelected: handleSetIsMatchSelected,
       refreshBallData
     }
   };
