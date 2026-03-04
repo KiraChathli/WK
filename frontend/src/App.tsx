@@ -28,6 +28,7 @@ const App = () => {
     matchNumber,
     currentOverBalls,
     extraType,
+    isSampleMatch,
   } = state;
   const {
     setSelections,
@@ -74,6 +75,7 @@ const App = () => {
                             overCount={state.currentOverCount}
                             currentOverBalls={currentOverBalls}
                             matchName={matchDisplayName}
+                            isSampleMatch={isSampleMatch}
                             onEditMatch={() => setIsMatchSelected(false)}
                           />
                           <Container fluid className="px-3 flex-grow-1 overflow-y-auto pb-5">
@@ -107,6 +109,8 @@ const App = () => {
                     <Route path="/visualise" element={
                         <VisualisePage
                             matchId={matchId}
+                            matchDisplayName={matchDisplayName}
+                            isSampleMatch={isSampleMatch}
                             onEditMatch={() => setIsMatchSelected(false)}
                             isSignedIn={isSignedIn ?? false}
                             onLogout={handleLogout}

@@ -7,6 +7,8 @@ import {
   type SheetMetadata,
   successfulTakeResults,
   successfulThrowInResults,
+  type MatchStatsComputed,
+  type MatchStatSection,
 } from "./types.ts";
 import { SHEET_EMPTY_VALUE, SAMPLE_DATA_PREFIX } from "./consts.ts";
 
@@ -37,12 +39,12 @@ export const logMultipleBallsToSheet = async (
   sheetName: string,
   isLocal: boolean = false
 ): Promise<void> => {
-  const values = balls.map(formatBallRow);
   const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+  const values = balls.map(formatBallRow);
 
   const appendRequest = {
-    spreadsheetId: spreadsheetId,
-    range: `${sheetName}!D2`, // Append to Data columns (D onwards)
+    spreadsheetId,
+    range: `${sheetName}!D2`,
     valueInputOption: "USER_ENTERED",
     ...(!isLocal && { resource: { values } }),
     ...(isLocal && { requestBody: { values } }),
@@ -51,97 +53,109 @@ export const logMultipleBallsToSheet = async (
   try {
     await googleSheetsApi.spreadsheets.values.append(appendRequest);
   } catch (err: any) {
-    // If sheet doesn't exist, Create it and retry
-    // Error encoded string often contains "Unable to parse range"
     const errorMsg = err.result?.error?.message || err.message || "";
     if (errorMsg.includes("Unable to parse range") || err.status === 400) {
-       console.log(`Sheet ${sheetName} not found. Creating...`);
-
-       // Create the new sheet
-       await googleSheetsApi.spreadsheets.batchUpdate({
-         spreadsheetId,
-         resource: {
-           requests: [
-             {
-               addSheet: {
-                 properties: {
-                   title: sheetName
-                 }
-               }
-             }
-           ]
-         }
-       });
-
-       // Create Header Row at D1
-       await googleSheetsApi.spreadsheets.values.append({
-         spreadsheetId,
-         range: `${sheetName}!D1`,
-         valueInputOption: "USER_ENTERED",
-         resource: { values: [SHEET_HEADERS] }
-       });
-
-       // Create Metadata and Stats in Columns A and B
-       const matchNumberMatch = sheetName.match(/Match (\d+)/i);
-       const matchNumber = matchNumberMatch ? matchNumberMatch[1] : "1";
-
-       const metadataUpdates = [
-           ["Match Info", ""],
-           ["Date", new Date().toLocaleDateString()],
-           ["Start Time", new Date().toLocaleTimeString()],
-           ["Match ID", sheetName], // Sheet name is the ID
-           ["Match Number", matchNumber], // Parsed from sheet name
-           ["", ""], // Empty row (A6)
-           ["Stats", ""] // Header for Stats (A7)
-       ];
-
-       await googleSheetsApi.spreadsheets.values.append({
-           spreadsheetId,
-           range: `${sheetName}!A1`,
-           valueInputOption: "USER_ENTERED",
-           resource: { values: metadataUpdates }
-       });
-
-
-       // Create Statistics Formulas
-       const dataStartColIndex = 3; // D
-
-       const takeHeaderIndex = SHEET_HEADERS.indexOf("Take");
-       const throwInHeaderIndex = SHEET_HEADERS.indexOf("Throw In");
-
-       if (takeHeaderIndex !== -1 && throwInHeaderIndex !== -1) {
-           const takeCol = getColumnLetter(dataStartColIndex + takeHeaderIndex);
-           const throwInCol = getColumnLetter(dataStartColIndex + throwInHeaderIndex);
-
-           // Generate dynamic formulas based on successful results
-           const takeSuccessCount = successfulTakeResults
-               .map((r) => `COUNTIF(${takeCol}2:${takeCol}, "${r}")`)
-               .join(" + ");
-
-           const throwInSuccessCount = successfulThrowInResults
-               .map((r) => `COUNTIF(${throwInCol}2:${throwInCol}, "${r}")`)
-               .join(" + ");
-
-           const statsUpdates = [
-               [ "Clean Takes %", `=ROUND(100 * (${takeSuccessCount}) / (COUNTA(${takeCol}2:${takeCol}) - COUNTIF(${takeCol}2:${takeCol}, "No touch")), 1)` ],
-               [ "Clean Throw Ins %", `=ROUND(100 * (${throwInSuccessCount}) / (COUNTA(${throwInCol}2:${throwInCol}) - COUNTIF(${throwInCol}2:${throwInCol}, "${SHEET_EMPTY_VALUE}") - COUNTIF(${throwInCol}2:${throwInCol}, "No touch")), 1)` ]
-           ];
-
-           // Insert Stats after Metadata
-           await googleSheetsApi.spreadsheets.values.append({
-               spreadsheetId,
-               range: `${sheetName}!A${metadataUpdates.length + 1}`,
-               valueInputOption: "USER_ENTERED",
-               resource: { values: statsUpdates }
-           });
-       }
-
-       // Append the data
-       await googleSheetsApi.spreadsheets.values.append(appendRequest);
+       await createNewSheetWithMetadata(googleSheetsApi, spreadsheetId, sheetName, appendRequest);
     } else {
       throw err;
     }
   }
+};
+
+/** Helper to create a new sheet, headers, metadata and formulas */
+const createNewSheetWithMetadata = async (
+    googleSheetsApi: any,
+    spreadsheetId: string,
+    sheetName: string,
+    appendRequest: any
+) => {
+    console.log(`Sheet ${sheetName} not found. Creating...`);
+
+    // 1. Create Sheet
+    await googleSheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: { requests: [{ addSheet: { properties: { title: sheetName } } }] }
+    });
+
+    // 2. Data Headers (D1)
+    await googleSheetsApi.spreadsheets.values.append({
+        spreadsheetId,
+        range: `${sheetName}!D1`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [SHEET_HEADERS] }
+    });
+
+    // 3. Metadata (A1)
+    const matchNumberMatch = sheetName.match(/Match (\d+)/i);
+    const matchNumber = matchNumberMatch ? matchNumberMatch[1] : "1";
+    const metadata = [
+        ["Match Info", ""],
+        ["Date", new Date().toLocaleDateString()],
+        ["Start Time", new Date().toLocaleTimeString()],
+        ["Match ID", sheetName],
+        ["Match Number", matchNumber],
+        ["", ""],
+        ["Stats", ""]
+    ];
+
+    await googleSheetsApi.spreadsheets.values.append({
+        spreadsheetId,
+        range: `${sheetName}!A1`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: metadata }
+    });
+
+    // 4. Statistics Formulas (A8 onwards)
+    const formulas = generateStatsFormulas();
+    await googleSheetsApi.spreadsheets.values.append({
+        spreadsheetId,
+        range: `${sheetName}!A${metadata.length + 1}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: formulas }
+    });
+
+    // 5. Append initial data
+    await googleSheetsApi.spreadsheets.values.append(appendRequest);
+};
+
+const generateStatsFormulas = () => {
+    const dataStartColIndex = 3; // D
+    const takeCol = getColumnLetter(dataStartColIndex + SHEET_HEADERS.indexOf("Take"));
+    const throwInCol = getColumnLetter(dataStartColIndex + SHEET_HEADERS.indexOf("Throw In"));
+    const bowlerCol = getColumnLetter(dataStartColIndex + SHEET_HEADERS.indexOf("Bowler"));
+    const extraCol = getColumnLetter(dataStartColIndex + SHEET_HEADERS.indexOf("Extra"));
+
+    const takeSuccessCount = successfulTakeResults
+        .map((r) => `COUNTIF(${takeCol}2:${takeCol}, "${r}")`)
+        .join(" + ");
+
+    const throwInSuccessCount = successfulThrowInResults
+        .map((r) => `COUNTIF(${throwInCol}2:${throwInCol}, "${r}")`)
+        .join(" + ");
+
+    return [
+        ["-- OVERALL --", ""],
+        ["Clean Takes %", `=IFERROR(ROUND(100 * (${takeSuccessCount}) / (COUNTA(${takeCol}2:${takeCol}) - COUNTIF(${takeCol}2:${takeCol}, "No touch")), 1), "-")`],
+        ["Clean Throw Ins %", `=IFERROR(ROUND(100 * (${throwInSuccessCount}) / (COUNTA(${throwInCol}2:${throwInCol}) - COUNTIF(${throwInCol}2:${throwInCol}, "${SHEET_EMPTY_VALUE}") - COUNTIF(${throwInCol}2:${throwInCol}, "No touch")), 1), "-")`],
+        ["Drop Rate %", `=IFERROR(ROUND(100 * (COUNTIF(${takeCol}2:${takeCol}, "Missed catch") + COUNTIF(${takeCol}2:${takeCol}, "Missed stumping")) / (COUNTIF(${takeCol}2:${takeCol}, "Catch") + COUNTIF(${takeCol}2:${takeCol}, "Stumping") + COUNTIF(${takeCol}2:${takeCol}, "Missed catch") + COUNTIF(${takeCol}2:${takeCol}, "Missed stumping")), 1), "-")`],
+        ["", ""],
+        ["-- PACE VS SPIN --", ""],
+        ["Pace Takes %", `=IFERROR(ROUND(100 * (COUNTIFS(${bowlerCol}2:${bowlerCol}, "*seam*", ${takeCol}2:${takeCol}, "Clean take") + COUNTIFS(${bowlerCol}2:${bowlerCol}, "*seam*", ${takeCol}2:${takeCol}, "Catch") + COUNTIFS(${bowlerCol}2:${bowlerCol}, "*seam*", ${takeCol}2:${takeCol}, "Stumping")) / (COUNTIFS(${bowlerCol}2:${bowlerCol}, "*seam*", ${takeCol}2:${takeCol}, "<>No touch", ${takeCol}2:${takeCol}, "<>")), 1), "-")`],
+        ["Spin Takes %", `=IFERROR(ROUND(100 * (COUNTIFS(${bowlerCol}2:${bowlerCol}, "*spin*", ${takeCol}2:${takeCol}, "Clean take") + COUNTIFS(${bowlerCol}2:${bowlerCol}, "*spin*", ${takeCol}2:${takeCol}, "Catch") + COUNTIFS(${bowlerCol}2:${bowlerCol}, "*spin*", ${takeCol}2:${takeCol}, "Stumping")) / (COUNTIFS(${bowlerCol}2:${bowlerCol}, "*spin*", ${takeCol}2:${takeCol}, "<>No touch", ${takeCol}2:${takeCol}, "<>")), 1), "-")`],
+        ["", ""],
+        ["-- DISMISSALS --", ""],
+        ["Catches", `=COUNTIF(${takeCol}2:${takeCol}, "Catch")`],
+        ["Stumpings", `=COUNTIF(${takeCol}2:${takeCol}, "Stumping")`],
+        ["Chances Missed", `=COUNTIF(${takeCol}2:${takeCol}, "Missed catch") + COUNTIF(${takeCol}2:${takeCol}, "Missed stumping")`],
+        ["", ""],
+        ["-- ERRORS --", ""],
+        ["Misses", `=COUNTIF(${takeCol}2:${takeCol}, "Miss")`],
+        ["Fumbles", `=COUNTIF(${takeCol}2:${takeCol}, "Fumble stop")`],
+        ["", ""],
+        ["-- EXTRAS --", ""],
+        ["Wides", `=COUNTIF(${extraCol}2:${extraCol}, "Wide")`],
+        ["No Balls", `=COUNTIF(${extraCol}2:${extraCol}, "No ball")`],
+    ];
 };
 
 export const readBallData = async (
@@ -174,59 +188,101 @@ export const readBallData = async (
   }
 };
 
+/** Metadata for section headers — maps the sheet marker to display properties */
+const SECTION_META: Record<string, { colorClass: string; icon: string }> = {
+    "OVERALL":      { colorClass: "primary", icon: "📊" },
+    "PACE VS SPIN": { colorClass: "info",    icon: "⚡" },
+    "DISMISSALS":   { colorClass: "success", icon: "🧤" },
+    "ERRORS":       { colorClass: "danger",  icon: "❌" },
+    "EXTRAS":       { colorClass: "warning", icon: "🏏" },
+};
+
 export const readMatchInfo = async (
     googleSheetsApi: any,
     sheetName: string
 ): Promise<SheetMetadata> => {
     const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+    const empty: SheetMetadata = { info: {}, stats: {}, statSections: [] };
     try {
         const response = await googleSheetsApi.spreadsheets.values.get({
             spreadsheetId,
-            range: `${sheetName}!A:B`, // Read Cols A and B
+            range: `${sheetName}!A:B`,
         });
 
         const values = response.result
             ? response.result.values
             : response.data.values;
 
-        if (!values) return { info: {}, stats: {} };
+        if (!values) return empty;
 
         const info: Record<string, string> = {};
         const stats: Record<string, string> = {};
+        const statSections: MatchStatsComputed = [];
 
-        // Parse: Read until empty row or "Stats" header
         let isStatsSection = false;
+        let currentSection: MatchStatSection | null = null;
 
         for (const row of values) {
             const key = row[0];
             const value = row[1] || "";
 
-            if (!key) continue; // Skip empty keys/rows
-
-            if (key === "Match Info") continue; // Header
+            if (!key) continue;
+            if (key === "Match Info") continue;
 
             if (key === "Stats") {
                 isStatsSection = true;
                 continue;
             }
 
-            if (isStatsSection) {
-                stats[key] = value;
-            } else {
+            if (!isStatsSection) {
                 info[key] = value;
+                continue;
+            }
+
+            // Check for section header like "-- OVERALL --"
+            const sectionMatch = key.match(/^-- (.+) --$/);
+            if (sectionMatch) {
+                const sectionName = sectionMatch[1];
+                const meta = SECTION_META[sectionName] || { colorClass: "secondary", icon: "📋" };
+                currentSection = {
+                    title: sectionName.split(' ').map((w: string) =>
+                        ['vs', 'and', 'or'].includes(w.toLowerCase())
+                            ? w.toLowerCase()
+                            : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+                    ).join(' '),
+                    colorClass: meta.colorClass,
+                    icon: meta.icon,
+                    stats: [],
+                };
+                statSections.push(currentSection);
+                continue;
+            }
+
+            // Regular stat row
+            stats[key] = value;
+
+            if (currentSection) {
+                const numVal = parseFloat(value);
+                const hasPctSuffix = key.endsWith("%");
+                currentSection.stats.push({
+                    label: key.replace(/ %$/, ""),
+                    value: hasPctSuffix ? `${isNaN(numVal) ? "-" : numVal}%` : (value || "-"),
+                    numericValue: isNaN(numVal) ? 0 : numVal,
+                    suffix: hasPctSuffix ? "%" : undefined,
+                });
             }
         }
 
-        return { info, stats };
+        return { info, stats, statSections };
 
     } catch (err: any) {
         const errorMsg = err.result?.error?.message || err.message || "";
         if (errorMsg.includes("Unable to parse range") || err.status === 400) {
             console.log(`Match info for sheet ${sheetName} not found. Returning empty.`);
-            return { info: {}, stats: {} };
+            return empty;
         }
         console.error(`Error reading match info for sheet ${sheetName}:`, err);
-        return { info: {}, stats: {} };
+        return empty;
     }
 };
 

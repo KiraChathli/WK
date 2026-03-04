@@ -137,7 +137,27 @@ export interface MatchStats {
 export interface SheetMetadata {
     info: MatchInfo;
     stats: MatchStats;
+    statSections: MatchStatsComputed;
 }
+
+/** A single stat to display */
+export type MatchStatItem = {
+    label: string;
+    value: string;       // formatted display value e.g. "87.5%" or "12"
+    numericValue: number; // raw number for potential sorting / colouring
+    suffix?: string;     // "%" or "" — display hint
+};
+
+/** A group of stats with a section header */
+export type MatchStatSection = {
+    title: string;        // e.g. "Overall", "Pace vs Spin"
+    colorClass: string;   // Bootstrap colour e.g. "primary", "success"
+    icon: string;         // Emoji icon for section
+    stats: MatchStatItem[];
+};
+
+/** Full computed stats for a single match */
+export type MatchStatsComputed = MatchStatSection[];
 
 // Aggregate Visualisation Types
 

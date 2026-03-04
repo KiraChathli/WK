@@ -1,7 +1,8 @@
 
 import { useEffect, useState } from "react";
-import { initGoogleClient, logBallToSheet, readBallData, signIn, signOut } from "../api/sheets";
+import { initGoogleClient, listSheetNames, logBallToSheet, readBallData, signIn, signOut } from "../api/sheets";
 import type { BallEntry, PageType, SelectionState, ExtraType } from "../../../common/types";
+import { SAMPLE_DATA_PREFIX } from "../../../common/consts";
 import { selectionStateToBallEntry } from "../utils";
 
 const EMPTY_SELECTIONS: SelectionState = {
@@ -38,8 +39,11 @@ export const useTracker = () => {
   const [matchDate, setMatchDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [matchNumber, setMatchNumber] = useState(1);
   const [isMatchSelected, setIsMatchSelected] = useState(false);
+  const [resolvedMatchId, setResolvedMatchId] = useState<string | null>(null);
+  const [isSampleMatch, setIsSampleMatch] = useState(false);
 
-  const matchId = `${matchDate} - Match ${matchNumber}`;
+  const baseMatchId = `${matchDate} - Match ${matchNumber}`;
+  const matchId = resolvedMatchId || baseMatchId;
 
   const formatMatchDisplay = (dateStr: string, matchNum: number) => {
     try {
@@ -65,10 +69,38 @@ export const useTracker = () => {
     initGoogleClient(setIsSignedIn);
   }, []);
 
+  // Resolve the actual sheet name (real vs sample) when match is selected
   useEffect(() => {
-    if (isSignedIn && isMatchSelected) {
-      // Fetch data for the selected match
-      readBallData(matchId).then((entries) => {
+    if (!isSignedIn || !isMatchSelected) return;
+
+    const realName = baseMatchId;
+    const sampleName = `${SAMPLE_DATA_PREFIX} ${baseMatchId}`;
+
+    listSheetNames()
+      .then((names) => {
+        if (names.includes(realName)) {
+          setResolvedMatchId(realName);
+          setIsSampleMatch(false);
+        } else if (names.includes(sampleName)) {
+          setResolvedMatchId(sampleName);
+          setIsSampleMatch(true);
+        } else {
+          // Neither exists — new match (will be created as real)
+          setResolvedMatchId(realName);
+          setIsSampleMatch(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Error resolving sheet name:", err);
+        setResolvedMatchId(realName);
+        setIsSampleMatch(false);
+      });
+  }, [isSignedIn, isMatchSelected, baseMatchId]);
+
+  useEffect(() => {
+    if (isSignedIn && isMatchSelected && resolvedMatchId) {
+      // Fetch data for the resolved match
+      readBallData(resolvedMatchId).then((entries) => {
         if (entries.length > 0) {
           const lastEntry = entries[entries.length - 1];
           // Ensure we have a valid position
@@ -101,7 +133,7 @@ export const useTracker = () => {
         }
       }).catch(console.error);
     }
-  }, [isSignedIn, isMatchSelected, matchId]);
+  }, [isSignedIn, isMatchSelected, resolvedMatchId]);
 
   // Determine which pages to show based on take result
   const getVisiblePages = (): PageType[] => {
@@ -161,6 +193,8 @@ export const useTracker = () => {
   const setMatchParams = (date: string, number: number) => {
       setMatchDate(date);
       setMatchNumber(number);
+      setResolvedMatchId(null); // Reset so resolution re-runs
+      setIsSampleMatch(false);
       setIsMatchSelected(true);
   };
 
@@ -225,7 +259,8 @@ export const useTracker = () => {
       matchDisplayName,
       matchId,
       matchDate,
-      matchNumber
+      matchNumber,
+      isSampleMatch
     },
     actions: {
       setSelections,

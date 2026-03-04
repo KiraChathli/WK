@@ -1,6 +1,6 @@
 import { Alert, Col, Container, Card, Nav, Row, Spinner } from "react-bootstrap";
 import Header from "../layout/Header";
-import type { MatchStats } from "../../../../common/types";
+import type { MatchStatsComputed } from "../../../../common/types";
 import { useEffect, useState } from "react";
 import { readMatchInfo } from "../../api/sheets";
 import { useAggregateData } from "../../hooks/useAggregateData";
@@ -17,6 +17,8 @@ import TakeResultChart from "../features/charts/TakeResultChart";
 
 interface VisualisePageProps {
     matchId: string;
+    matchDisplayName: string;
+    isSampleMatch?: boolean;
     onEditMatch: () => void;
     isSignedIn: boolean;
     onLogout: () => void;
@@ -26,6 +28,8 @@ type VisualiseTab = "match" | "trends";
 
 const VisualisePage = ({
     matchId,
+    matchDisplayName,
+    isSampleMatch = false,
     onEditMatch,
     isSignedIn,
     onLogout,
@@ -33,7 +37,7 @@ const VisualisePage = ({
     const [activeTab, setActiveTab] = useState<VisualiseTab>("match");
 
     // Single match stats (for "Match" tab)
-    const [stats, setStats] = useState<MatchStats | null>(null);
+    const [computedStats, setComputedStats] = useState<MatchStatsComputed | null>(null);
     const [matchLoading, setMatchLoading] = useState(false);
 
     // Aggregate data (for "Trends" tab)
@@ -43,7 +47,7 @@ const VisualisePage = ({
         if (isSignedIn && matchId) {
             setMatchLoading(true);
             readMatchInfo(matchId)
-                .then((data) => setStats(data.stats))
+                .then((data) => setComputedStats(data.statSections))
                 .catch(console.error)
                 .finally(() => setMatchLoading(false));
         }
@@ -59,7 +63,8 @@ const VisualisePage = ({
                 currentStepIndex={0}
                 onLogout={onLogout}
                 onStepClick={() => {}}
-                matchName={matchId}
+                matchName={matchDisplayName}
+                isSampleMatch={isSampleMatch}
                 onEditMatch={onEditMatch}
                 showProgress={false}
                 overCount={undefined}
@@ -84,7 +89,7 @@ const VisualisePage = ({
 
                         {/* Tab Content */}
                         {activeTab === "match" && (
-                            <MatchTab stats={stats} loading={matchLoading} />
+                            <MatchTab stats={computedStats} loading={matchLoading} />
                         )}
                         {activeTab === "trends" && (
                             <TrendsTab aggregate={aggregate} />
@@ -96,12 +101,12 @@ const VisualisePage = ({
     );
 };
 
-/** Match tab — current match stat cards */
+/** Match tab — current match stat cards grouped by section */
 const MatchTab = ({
     stats,
     loading,
 }: {
-    stats: MatchStats | null;
+    stats: MatchStatsComputed | null;
     loading: boolean;
 }) => {
     if (loading) {
@@ -112,33 +117,44 @@ const MatchTab = ({
         );
     }
 
+    if (!stats || stats.length === 0) {
+        return (
+            <div className="text-center text-muted py-5">
+                <p>No data recorded for this match yet.</p>
+            </div>
+        );
+    }
+
     return (
-        <Row className="g-3">
-            <Col xs={6}>
-                <Card className="h-100 shadow-sm border-0 bg-primary bg-opacity-10">
-                    <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-4">
-                        <h2 className="display-4 fw-bold text-primary mb-0">
-                            {stats ? stats["Clean Takes %"] || "-" : "-"}%
-                        </h2>
-                        <small className="text-muted text-uppercase fw-bold">
-                            Clean Takes
-                        </small>
-                    </Card.Body>
-                </Card>
-            </Col>
-            <Col xs={6}>
-                <Card className="h-100 shadow-sm border-0 bg-success bg-opacity-10">
-                    <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-4">
-                        <h2 className="display-4 fw-bold text-success mb-0">
-                            {stats ? stats["Clean Throw Ins %"] || "-" : "-"}%
-                        </h2>
-                        <small className="text-muted text-uppercase fw-bold">
-                            Clean Throw Ins
-                        </small>
-                    </Card.Body>
-                </Card>
-            </Col>
-        </Row>
+        <div className="d-flex flex-column gap-4">
+            {stats.map((section) => (
+                <div key={section.title}>
+                    <div className="d-flex align-items-center mb-3">
+                        <span className="fs-4 me-2">{section.icon}</span>
+                        <h4 className="mb-0 text-uppercase fw-bold text-muted small tracking-wider">
+                            {section.title}
+                        </h4>
+                        <div className="flex-grow-1 ms-3 border-bottom border-light"></div>
+                    </div>
+                    <Row className="g-3">
+                        {section.stats.map((stat) => (
+                            <Col xs={6} md={section.stats.length === 3 ? 4 : 3} key={stat.label}>
+                                <Card className={`h-100 shadow-sm border-0 bg-${section.colorClass} bg-opacity-10`}>
+                                    <Card.Body className="d-flex flex-column align-items-center justify-content-center text-center py-4">
+                                        <h2 className={`display-5 fw-bold text-${section.colorClass} mb-0`}>
+                                            {stat.value}
+                                        </h2>
+                                        <small className="text-muted text-uppercase fw-bold x-small mt-2">
+                                            {stat.label}
+                                        </small>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                        ))}
+                    </Row>
+                </div>
+            ))}
+        </div>
     );
 };
 

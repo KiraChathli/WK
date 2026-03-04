@@ -12,6 +12,7 @@ interface HeaderProps {
     overCount?: OverCount;
     currentOverBalls?: BallEntry[];
     matchName: string;
+    isSampleMatch?: boolean;
     onLogout: () => void;
     onStepClick: (index: number) => void;
     onEditMatch: () => void;
@@ -27,6 +28,7 @@ const Header = ({
     overCount,
     currentOverBalls,
     matchName,
+    isSampleMatch = false,
     onLogout,
     onStepClick,
     onEditMatch,
@@ -45,6 +47,9 @@ const Header = ({
                 <div className="d-flex flex-column align-items-start mx-auto">
                     <div className="d-flex align-items-center gap-2">
                         <span className="fw-bold">{matchName}</span>
+                        {isSampleMatch && (
+                            <span title="Sample data" style={{ fontSize: "14px", opacity: 0.8 }}>🧪</span>
+                        )}
                          <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={onEditMatch}>
                             Change
                          </Button>
