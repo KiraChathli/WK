@@ -75,6 +75,17 @@ export const logBallToSheet = async (entry: BallEntry, sheetName: string) =>
 export const readBallData = async (sheetName: string): Promise<BallEntry[]> =>
   await utils.readBallData(gapi.client.sheets, sheetName);
 
+export const updateBallInSheet = async (
+  entry: BallEntry,
+  sheetName: string,
+  rowIndex: number
+) => await utils.updateBallInSheet(entry, gapi.client.sheets, sheetName, rowIndex);
+
+export const deleteBallFromSheet = async (
+  sheetName: string,
+  rowIndex: number
+) => await utils.deleteBallFromSheet(gapi.client.sheets, sheetName, rowIndex);
+
 export const readMatchInfo = async (sheetName: string) =>
     await utils.readMatchInfo(gapi.client.sheets, sheetName);
 

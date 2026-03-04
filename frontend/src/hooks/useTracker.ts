@@ -97,42 +97,43 @@ export const useTracker = () => {
       });
   }, [isSignedIn, isMatchSelected, baseMatchId]);
 
-  useEffect(() => {
-    if (isSignedIn && isMatchSelected && resolvedMatchId) {
-      // Fetch data for the resolved match
-      readBallData(resolvedMatchId).then((entries) => {
-        if (entries.length > 0) {
-          const lastEntry = entries[entries.length - 1];
-          // Ensure we have a valid position
-          if (lastEntry.overCount) {
-            const lastOverNum = lastEntry.overCount.over;
-            const ballsInLastOver = entries.filter(e => e.overCount.over === lastOverNum);
-            const validBalls = ballsInLastOver.filter(b => !b.extraType).length;
+  const refreshBallData = async () => {
+    if (!isSignedIn || !isMatchSelected || !resolvedMatchId) return;
+    try {
+      const entries = await readBallData(resolvedMatchId);
+      if (entries.length > 0) {
+        const lastEntry = entries[entries.length - 1];
+        if (lastEntry.overCount) {
+          const lastOverNum = lastEntry.overCount.over;
+          const ballsInLastOver = entries.filter(e => e.overCount.over === lastOverNum);
+          const validBalls = ballsInLastOver.filter(b => !b.extraType).length;
 
-            if (validBalls >= 6) {
-               // Next over
-               setCurrentOver(lastOverNum + 1);
-               setCurrentOverBalls([]);
-               setSelections(EMPTY_SELECTIONS);
-               setCurrentStepIndex(0);
-            } else {
-               // Continue over
-               setCurrentOver(lastOverNum);
-               setCurrentOverBalls(ballsInLastOver);
-               setSelections((prev) => ({ ...prev, bowler: lastEntry.bowlerType }));
-               setCurrentStepIndex(1); // Skip bowler selection
-            }
+          if (validBalls >= 6) {
+            setCurrentOver(lastOverNum + 1);
+            setCurrentOverBalls([]);
+            setSelections(EMPTY_SELECTIONS);
+            setCurrentStepIndex(0);
+          } else {
+            setCurrentOver(lastOverNum);
+            setCurrentOverBalls(ballsInLastOver);
+            setSelections((prev) => ({ ...prev, bowler: lastEntry.bowlerType }));
+            setCurrentStepIndex(1);
           }
-        } else {
-             // New match or empty sheet, reset counters
-             setCurrentOver(0);
-             setCurrentOverBalls([]);
-             setSelections(EMPTY_SELECTIONS);
-             setCurrentStepIndex(0);
-             setExtraType(undefined);
         }
-      }).catch(console.error);
+      } else {
+        setCurrentOver(0);
+        setCurrentOverBalls([]);
+        setSelections(EMPTY_SELECTIONS);
+        setCurrentStepIndex(0);
+        setExtraType(undefined);
+      }
+    } catch (err) {
+      console.error(err);
     }
+  };
+
+  useEffect(() => {
+    refreshBallData();
   }, [isSignedIn, isMatchSelected, resolvedMatchId]);
 
   // Determine which pages to show based on take result
@@ -272,7 +273,8 @@ export const useTracker = () => {
       signIn,
       hideToast: () => setToast((prev) => ({ ...prev, show: false })),
       setMatchParams,
-      setIsMatchSelected
+      setIsMatchSelected,
+      refreshBallData
     }
   };
 };

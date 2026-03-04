@@ -1,5 +1,5 @@
 import { Nav, Navbar } from "react-bootstrap";
-import { BarChartFill, PencilSquare } from "react-bootstrap-icons";
+import { BarChartFill, ListUl, PencilSquare } from "react-bootstrap-icons";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const BottomNav = () => {
@@ -14,6 +14,13 @@ const BottomNav = () => {
             >
                 <PencilSquare size={24} />
                 <span style={{ fontSize: "0.75rem", marginTop: "4px" }}>Record</span>
+            </Nav.Link>
+            <Nav.Link
+                onClick={() => navigate("/balls")}
+                className={`d-flex flex-column align-items-center ${location.pathname === "/balls" ? "text-primary" : "text-muted"}`}
+            >
+                <ListUl size={24} />
+                <span style={{ fontSize: "0.75rem", marginTop: "4px" }}>Balls</span>
             </Nav.Link>
             <Nav.Link
                 onClick={() => navigate("/visualise")}

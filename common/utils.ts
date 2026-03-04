@@ -158,6 +158,116 @@ const generateStatsFormulas = () => {
     ];
 };
 
+/**
+ * Updates a ball entry at a specific row index (0-based) in the sheet.
+ * Row index 0 corresponds to sheet row 2 (D2:M2).
+ */
+export const updateBallInSheet = async (
+  ball: BallEntry,
+  googleSheetsApi: any,
+  sheetName: string,
+  rowIndex: number
+): Promise<void> => {
+  const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+  const sheetRow = rowIndex + 2; // Data starts at row 2
+  const values = [formatBallRow(ball)];
+
+  await googleSheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${sheetName}!D${sheetRow}:M${sheetRow}`,
+    valueInputOption: "USER_ENTERED",
+    resource: { values },
+  });
+};
+
+/**
+ * Deletes a ball entry at a specific row index (0-based) from the sheet,
+ * then renumbers the remaining balls in the same over.
+ * Row index 0 corresponds to sheet row 2.
+ */
+export const deleteBallFromSheet = async (
+  googleSheetsApi: any,
+  sheetName: string,
+  rowIndex: number
+): Promise<void> => {
+  const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+  const sheetRow = rowIndex + 2; // Data starts at row 2
+
+  // Read all balls to know the deleted ball's over number
+  const allBalls = await readBallData(googleSheetsApi, sheetName);
+  const deletedBall = allBalls[rowIndex];
+  if (!deletedBall) throw new Error(`No ball at index ${rowIndex}`);
+  const overNum = deletedBall.overCount.over;
+
+  // Get the sheetId for the batchUpdate call
+  const spreadsheet = await googleSheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties",
+  });
+
+  const sheets = spreadsheet.result
+    ? spreadsheet.result.sheets
+    : spreadsheet.data.sheets;
+
+  const sheet = sheets.find((s: any) => s.properties.title === sheetName);
+  if (!sheet) throw new Error(`Sheet "${sheetName}" not found`);
+
+  const sheetId = sheet.properties.sheetId;
+
+  // Delete the row
+  await googleSheetsApi.spreadsheets.batchUpdate({
+    spreadsheetId,
+    resource: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: "ROWS",
+              startIndex: sheetRow - 1, // 0-based for batchUpdate
+              endIndex: sheetRow,
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  // Renumber remaining balls in the same over.
+  // After row deletion, indices above the deleted row shift down by 1.
+  const ballColumn = getColumnLetter(3 + SHEET_HEADERS.indexOf("Ball"));
+  const renumberData: { range: string; values: string[][] }[] = [];
+  let nonExtraCount = 0;
+
+  for (let i = 0; i < allBalls.length; i++) {
+    if (i === rowIndex) continue; // skip deleted ball
+    if (allBalls[i].overCount.over !== overNum) continue;
+
+    const newIndex = i < rowIndex ? i : i - 1;
+    const newSheetRow = newIndex + 2;
+
+    nonExtraCount++;
+    renumberData.push({
+      range: `${sheetName}!${ballColumn}${newSheetRow}`,
+      values: [[nonExtraCount.toString()]],
+    });
+
+    if (allBalls[i].extraType) {
+      nonExtraCount--;
+    }
+  }
+
+  if (renumberData.length > 0) {
+    await googleSheetsApi.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      resource: {
+        valueInputOption: "USER_ENTERED",
+        data: renumberData,
+      },
+    });
+  }
+};
+
 export const readBallData = async (
   googleSheetsApi: any,
   sheetName: string

@@ -7,6 +7,7 @@ import LoginView from "./components/pages/LoginView";
 import MainPage from "./components/pages/MainPage";
 import SummaryPage from "./components/pages/SummaryPage";
 import VisualisePage from "./components/pages/VisualisePage";
+import BallsTab from "./components/features/BallsTab";
 import MatchSelection from "./components/features/MatchSelection";
 import { useTracker } from "./hooks/useTracker";
 import { BASE_URL } from "../../common/consts";
@@ -41,6 +42,7 @@ const App = () => {
     setMatchParams,
     setIsMatchSelected,
     setExtraType,
+    refreshBallData,
   } = actions;
 
   return (
@@ -102,6 +104,35 @@ const App = () => {
                                         />
                                     )}
                                 </Col>
+                            </Row>
+                          </Container>
+                        </>
+                    } />
+                    <Route path="/balls" element={
+                        <>
+                          <Header
+                            isSignedIn={isSignedIn}
+                            isSummary={false}
+                            visiblePages={[]}
+                            selections={{ bowler: "", delivery: "", take: "", collection: "", error: "", throwIn: "" }}
+                            currentStepIndex={0}
+                            onLogout={handleLogout}
+                            onStepClick={() => {}}
+                            matchName={matchDisplayName}
+                            isSampleMatch={isSampleMatch}
+                            onEditMatch={() => setIsMatchSelected(false)}
+                            showProgress={false}
+                            overCount={undefined}
+                          />
+                          <Container fluid className="px-3 flex-grow-1 overflow-y-auto pb-5">
+                            <Row className="justify-content-center">
+                              <Col xs={12} xl={10} className="py-3">
+                                <BallsTab
+                                  matchId={matchId}
+                                  isSignedIn={isSignedIn ?? false}
+                                  onBallsChanged={refreshBallData}
+                                />
+                              </Col>
                             </Row>
                           </Container>
                         </>

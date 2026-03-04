@@ -4,7 +4,6 @@ import type { MatchStatsComputed } from "../../../../common/types";
 import { useEffect, useState } from "react";
 import { readMatchInfo } from "../../api/sheets";
 import { useAggregateData } from "../../hooks/useAggregateData";
-
 // Chart components
 import MatchRangeSelector from "../features/charts/MatchRangeSelector";
 import AverageCards from "../features/charts/AverageCards";
