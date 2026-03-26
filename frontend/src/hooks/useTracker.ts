@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { initGoogleClient, listSheetNames, logBallToSheet, readBallData, signIn, signOut } from "../api/sheets";
 import type { BallEntry, PageType, SelectionState, ExtraType } from "../../../common/types";
 import { SAMPLE_DATA_PREFIX } from "../../../common/consts";
-import { selectionStateToBallEntry } from "../utils";
+import { getLocalIsoDate, selectionStateToBallEntry } from "../utils";
 
 const EMPTY_SELECTIONS: SelectionState = {
   bowler: "",
@@ -39,6 +39,7 @@ const clearMatchUrlParam = () => {
 
 export const useTracker = () => {
   const urlMatch = getMatchFromUrl();
+  const [hasUnconfirmedInitialUrlMatch, setHasUnconfirmedInitialUrlMatch] = useState(!!urlMatch);
 
   const [selections, setSelections] = useState<SelectionState>(EMPTY_SELECTIONS);
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
@@ -59,7 +60,7 @@ export const useTracker = () => {
   const [lastUpdatedPage, setLastUpdatedPage] = useState<PageType | null>(null);
 
   // Match State — initialise from URL param if present
-  const [matchDate, setMatchDate] = useState(() => urlMatch?.date ?? new Date().toISOString().split("T")[0]);
+  const [matchDate, setMatchDate] = useState(() => urlMatch?.date ?? getLocalIsoDate());
   const [matchNumber, setMatchNumber] = useState(() => urlMatch?.number ?? 1);
   const [isMatchSelected, setIsMatchSelected] = useState(!!urlMatch);
   const [resolvedMatchId, setResolvedMatchId] = useState<string | null>(null);
@@ -104,13 +105,25 @@ export const useTracker = () => {
         if (names.includes(realName)) {
           setResolvedMatchId(realName);
           setIsSampleMatch(false);
-        } else if (names.includes(sampleName)) {
+          setHasUnconfirmedInitialUrlMatch(false);
+          return;
+        }
+
+        if (names.includes(sampleName)) {
           setResolvedMatchId(sampleName);
           setIsSampleMatch(true);
-        } else {
-          // Neither exists — new match (will be created as real)
-          setResolvedMatchId(realName);
-          setIsSampleMatch(false);
+          setHasUnconfirmedInitialUrlMatch(false);
+          return;
+        }
+
+        // New match: create as a real sheet.
+        // But if it came from an initial URL param, force a one-time reconfirmation
+        // to prevent stale bookmarked links creating wrong-year sheets.
+        setResolvedMatchId(realName);
+        setIsSampleMatch(false);
+        if (hasUnconfirmedInitialUrlMatch) {
+          setHasUnconfirmedInitialUrlMatch(false);
+          setIsMatchSelected(false);
         }
       })
       .catch((err) => {
@@ -118,7 +131,7 @@ export const useTracker = () => {
         setResolvedMatchId(realName);
         setIsSampleMatch(false);
       });
-  }, [isSignedIn, isMatchSelected, baseMatchId]);
+  }, [isSignedIn, isMatchSelected, baseMatchId, hasUnconfirmedInitialUrlMatch]);
 
   const refreshBallData = async () => {
     if (!isSignedIn || !isMatchSelected || !resolvedMatchId) return;
@@ -217,6 +230,7 @@ export const useTracker = () => {
   const setMatchParams = (date: string, number: number) => {
       setMatchDate(date);
       setMatchNumber(number);
+      setHasUnconfirmedInitialUrlMatch(false);
       setResolvedMatchId(null); // Reset so resolution re-runs
       setIsSampleMatch(false);
       setIsMatchSelected(true);
@@ -225,7 +239,10 @@ export const useTracker = () => {
 
   const handleSetIsMatchSelected = (selected: boolean) => {
       setIsMatchSelected(selected);
-      if (!selected) clearMatchUrlParam();
+      if (!selected) {
+        setHasUnconfirmedInitialUrlMatch(false);
+        clearMatchUrlParam();
+      }
   };
 
   const handleSubmit = async () => {
@@ -308,3 +325,4 @@ export const useTracker = () => {
     }
   };
 };
+

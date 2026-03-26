@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
+import { getLocalIsoDate } from "../../utils";
 
 interface MatchSelectionProps {
   initialDate?: string; // YYYY-MM-DD
@@ -14,9 +15,7 @@ const MatchSelection = ({
   onConfirm,
   onCancel
 }: MatchSelectionProps) => {
-  const getToday = () => new Date().toISOString().split("T")[0];
-
-  const [date, setDate] = useState(initialDate || getToday());
+  const [date, setDate] = useState(initialDate || getLocalIsoDate());
   const [matchNumber, setMatchNumber] = useState(initialMatchNumber || 1);
 
   const handleSubmit = (e: React.FormEvent) => {
