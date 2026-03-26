@@ -7,6 +7,14 @@ import type {
     MatchAggregateData,
     AggregateChartData,
 } from "../../../common/types";
+import {
+    buildMatchAggregateData,
+    countRejectedSettledResults,
+    getAllBallsFromMatches,
+    getChronologicalMatchData,
+    getSheetsForSelectedRange,
+    getUncachedSheets,
+} from "./aggregateLogic";
 
 type AggregateDataState = {
     isLoading: boolean;
@@ -58,10 +66,10 @@ export const useAggregateData = (isSignedIn: boolean) => {
         if (state.sheetNames.length === 0) return;
         if (isFetchingRef.current) return;
 
-        const sheetsToFetch =
-            state.selectedRange === "all"
-                ? state.sheetNames
-                : state.sheetNames.slice(0, state.selectedRange);
+        const sheetsToFetch = getSheetsForSelectedRange(
+            state.sheetNames,
+            state.selectedRange
+        );
 
         if (sheetsToFetch.length === 0) {
             setState((prev) => ({
@@ -74,21 +82,20 @@ export const useAggregateData = (isSignedIn: boolean) => {
         }
 
         // Determine which sheets need fetching (not in cache)
-        const uncachedSheets = sheetsToFetch.filter(
-            (name) => !cacheRef.current.has(name)
-        );
+        const uncachedSheets = getUncachedSheets(sheetsToFetch, cacheRef.current);
 
         // If everything is cached, just recompute
         if (uncachedSheets.length === 0) {
-            const matchData = sheetsToFetch
-                .map((name) => cacheRef.current.get(name)!)
-                .reverse(); // Chronological order for charts
+            const matchData = getChronologicalMatchData(
+                sheetsToFetch,
+                cacheRef.current
+            );
             const chartData = computeAggregateStats(matchData);
             setState((prev) => ({
                 ...prev,
                 isLoading: false,
                 chartData,
-                allBalls: matchData.flatMap((m) => m.balls),
+                allBalls: getAllBallsFromMatches(matchData),
                 matchCount: matchData.length,
             }));
             return;
@@ -104,18 +111,7 @@ export const useAggregateData = (isSignedIn: boolean) => {
                 readBallData(sheetName),
             ]);
 
-            const matchNumberMatch = sheetName.match(/Match (\d+)/);
-            const dateMatch = sheetName.match(/^(\d{4}-\d{2}-\d{2})/);
-
-            const data: MatchAggregateData = {
-                sheetName,
-                date: dateMatch ? dateMatch[1] : "",
-                matchNumber: matchNumberMatch ? parseInt(matchNumberMatch[1]) : 1,
-                stats: metaResult.stats,
-                balls: ballResult,
-            };
-
-            return data;
+            return buildMatchAggregateData(sheetName, metaResult.stats, ballResult);
         });
 
         Promise.allSettled(fetchPromises)
@@ -128,19 +124,19 @@ export const useAggregateData = (isSignedIn: boolean) => {
                 }
 
                 // Build array from all requested sheets (cached + newly fetched)
-                const matchData = sheetsToFetch
-                    .filter((name) => cacheRef.current.has(name))
-                    .map((name) => cacheRef.current.get(name)!)
-                    .reverse(); // Chronological order for charts
+                const matchData = getChronologicalMatchData(
+                    sheetsToFetch,
+                    cacheRef.current
+                );
 
                 const chartData = computeAggregateStats(matchData);
-                const failedCount = results.filter((r) => r.status === "rejected").length;
+                const failedCount = countRejectedSettledResults(results);
 
                 setState((prev) => ({
                     ...prev,
                     isLoading: false,
                     chartData,
-                    allBalls: matchData.flatMap((m) => m.balls),
+                    allBalls: getAllBallsFromMatches(matchData),
                     matchCount: matchData.length,
                     error: failedCount > 0
                         ? `${failedCount} match(es) could not be loaded.`

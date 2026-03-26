@@ -10,54 +10,18 @@ import {
 import type { BallEntry, ExtraType, PageType, SelectionState } from "../../../common/types";
 import { SAMPLE_DATA_PREFIX } from "../../../common/consts";
 import { getLocalIsoDate, selectionStateToBallEntry } from "../utils";
-
-const EMPTY_SELECTIONS: SelectionState = {
-  bowler: "",
-  keeper: "",
-  delivery: "",
-  take: "",
-  collection: "",
-  error: "",
-  throwIn: "",
-};
-
-const getVisiblePagesFor = (selectionState: SelectionState): PageType[] => {
-  const pages: PageType[] = ["bowler", "keeper", "delivery", "take"];
-
-  if (
-    selectionState.take === "Clean take" ||
-    selectionState.take === "Catch" ||
-    selectionState.take === "Stumping"
-  ) {
-    pages.push("collection");
-  } else if (selectionState.take && selectionState.take !== "No touch") {
-    pages.push("error");
-  }
-
-  pages.push("throwIn");
-  return pages;
-};
-
-const getResumeStepIndex = (selectionState: SelectionState): number => {
-  const visiblePages = getVisiblePagesFor(selectionState);
-  if (selectionState.keeper) {
-    const deliveryIndex = visiblePages.indexOf("delivery");
-    return deliveryIndex === -1 ? 0 : deliveryIndex;
-  }
-
-  const keeperIndex = visiblePages.indexOf("keeper");
-  return keeperIndex === -1 ? 0 : keeperIndex;
-};
-
-/** Parse ?match=YYYY-MM-DD-N from the URL */
-const getMatchFromUrl = (): { date: string; number: number } | null => {
-  const params = new URLSearchParams(window.location.search);
-  const match = params.get("match");
-  if (!match) return null;
-  const parts = match.match(/^(\d{4}-\d{2}-\d{2})-(\d+)$/);
-  if (!parts) return null;
-  return { date: parts[1], number: parseInt(parts[2], 10) };
-};
+import {
+  EMPTY_SELECTIONS,
+  buildQuickNoTouchSelections,
+  buildSkipToThrowInSelections,
+  derivePostSubmitState,
+  deriveRefreshStateFromEntries,
+  formatMatchDisplay,
+  getCurrentOverCount,
+  getNextOverCount,
+  getVisiblePagesFor,
+  parseMatchFromSearch,
+} from "./trackerLogic";
 
 /** Write or clear the ?match= query param without a full navigation */
 const dispatchLocationUpdate = () => {
@@ -85,7 +49,7 @@ const clearMatchUrlParam = () => {
 };
 
 export const useTracker = () => {
-  const urlMatch = getMatchFromUrl();
+  const urlMatch = parseMatchFromSearch(window.location.search);
   const [hasUnconfirmedInitialUrlMatch, setHasUnconfirmedInitialUrlMatch] = useState(!!urlMatch);
 
   const [selections, setSelections] = useState<SelectionState>(EMPTY_SELECTIONS);
@@ -115,26 +79,7 @@ export const useTracker = () => {
 
   const baseMatchId = `${matchDate} - Match ${matchNumber}`;
   const matchId = resolvedMatchId || baseMatchId;
-
-  const formatMatchDisplay = (dateStr: string, matchNum: number) => {
-    try {
-      const date = new Date(dateStr);
-      const day = date.getDate();
-      const month = date.toLocaleString("default", { month: "short" });
-
-      const getOrdinalSuffix = (dayNum: number) => {
-        const suffixes = ["th", "st", "nd", "rd"];
-        const value = dayNum % 100;
-        return suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0];
-      };
-
-      return `${day}${getOrdinalSuffix(day)} ${month} - Match ${matchNum}`;
-    } catch {
-      return matchId;
-    }
-  };
-
-  const matchDisplayName = formatMatchDisplay(matchDate, matchNumber);
+  const matchDisplayName = formatMatchDisplay(matchDate, matchNumber, matchId);
 
   useEffect(() => {
     initGoogleClient(setIsSignedIn);
@@ -182,37 +127,12 @@ export const useTracker = () => {
 
     try {
       const entries = await readBallData(resolvedMatchId);
-      if (entries.length > 0) {
-        const lastEntry = entries[entries.length - 1];
-        if (lastEntry.overCount) {
-          const lastOverNum = lastEntry.overCount.over;
-          const ballsInLastOver = entries.filter((entry) => entry.overCount.over === lastOverNum);
-          const validBalls = ballsInLastOver.filter((ball) => !ball.extraType).length;
-
-          if (validBalls >= 6) {
-            setCurrentOver(lastOverNum + 1);
-            setCurrentOverBalls([]);
-            setSelections(EMPTY_SELECTIONS);
-            setCurrentStepIndex(0);
-          } else {
-            setCurrentOver(lastOverNum);
-            setCurrentOverBalls(ballsInLastOver);
-
-            const carriedSelections: SelectionState = {
-              ...EMPTY_SELECTIONS,
-              bowler: lastEntry.bowlerType,
-              keeper: lastEntry.wkPosition || "",
-            };
-
-            setSelections(carriedSelections);
-            setCurrentStepIndex(getResumeStepIndex(carriedSelections));
-          }
-        }
-      } else {
-        setCurrentOver(0);
-        setCurrentOverBalls([]);
-        setSelections(EMPTY_SELECTIONS);
-        setCurrentStepIndex(0);
+      const refreshedState = deriveRefreshStateFromEntries(entries);
+      setCurrentOver(refreshedState.currentOver);
+      setCurrentOverBalls(refreshedState.currentOverBalls);
+      setSelections(refreshedState.selections);
+      setCurrentStepIndex(refreshedState.currentStepIndex);
+      if (refreshedState.shouldResetExtraType) {
         setExtraType(undefined);
       }
     } catch (err) {
@@ -286,10 +206,7 @@ export const useTracker = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const nextOverCount = {
-      over: currentOver,
-      ball: currentOverBalls.filter((ball) => !ball.extraType).length + 1,
-    };
+    const nextOverCount = getNextOverCount(currentOver, currentOverBalls);
 
     const newEntry: BallEntry = selectionStateToBallEntry(
       submissionSelections,
@@ -299,25 +216,16 @@ export const useTracker = () => {
 
     try {
       await logBallToSheet(newEntry, matchId);
-
-      const updatedBalls = [...currentOverBalls, newEntry];
-      const validBalls = updatedBalls.filter((ball) => !ball.extraType).length;
-
-      if (validBalls >= 6) {
-        setCurrentOver(currentOver + 1);
-        setCurrentOverBalls([]);
-        setSelections({ ...EMPTY_SELECTIONS });
-        setCurrentStepIndex(0);
-      } else {
-        setCurrentOverBalls(updatedBalls);
-        const carriedSelections: SelectionState = {
-          ...EMPTY_SELECTIONS,
-          bowler: submissionSelections.bowler,
-          keeper: submissionSelections.keeper,
-        };
-        setSelections(carriedSelections);
-        setCurrentStepIndex(getResumeStepIndex(carriedSelections));
-      }
+      const postSubmitState = derivePostSubmitState({
+        currentOver,
+        currentOverBalls,
+        newEntry,
+        submissionSelections,
+      });
+      setCurrentOver(postSubmitState.currentOver);
+      setCurrentOverBalls(postSubmitState.currentOverBalls);
+      setSelections(postSubmitState.selections);
+      setCurrentStepIndex(postSubmitState.currentStepIndex);
 
       setExtraType(undefined);
       setToast({ show: true, message: "Entry saved successfully!", variant: "success" });
@@ -334,13 +242,7 @@ export const useTracker = () => {
   };
 
   const handleSkipToThrowIn = () => {
-    const nextSelections: SelectionState = {
-      ...selections,
-      take: "No touch",
-      collection: "",
-      error: "",
-      throwIn: "",
-    };
+    const nextSelections = buildSkipToThrowInSelections(selections);
 
     setSelections(nextSelections);
     const throwInIndex = getVisiblePagesFor(nextSelections).indexOf("throwIn");
@@ -351,14 +253,7 @@ export const useTracker = () => {
   };
 
   const handleQuickNoTouchSubmit = async () => {
-    const quickSelections: SelectionState = {
-      ...selections,
-      take: "No touch",
-      collection: "",
-      error: "",
-      throwIn: "No touch",
-    };
-
+    const quickSelections = buildQuickNoTouchSelections(selections);
     await submitEntry(quickSelections, undefined);
   };
 
@@ -378,10 +273,7 @@ export const useTracker = () => {
       currentStepIndex,
       visiblePages,
       isSummary,
-      currentOverCount: {
-        over: currentOver,
-        ball: currentOverBalls.filter((ball) => !ball.extraType).length + 1,
-      },
+      currentOverCount: getCurrentOverCount(currentOver, currentOverBalls),
       isMatchSelected,
       isMatchReady: isMatchSelected && resolvedMatchId !== null,
       matchDisplayName,
