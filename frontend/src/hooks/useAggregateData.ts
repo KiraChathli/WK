@@ -3,6 +3,7 @@ import { listSheetNames, readMatchInfo, readBallData } from "../api/sheets";
 import { computeAggregateStats } from "../../../common/utils";
 import type {
     AggregateRangeOption,
+    BallEntry,
     MatchAggregateData,
     AggregateChartData,
 } from "../../../common/types";
@@ -13,6 +14,7 @@ type AggregateDataState = {
     sheetNames: string[];
     selectedRange: AggregateRangeOption;
     chartData: AggregateChartData | null;
+    allBalls: BallEntry[];
     matchCount: number;
 };
 
@@ -22,6 +24,7 @@ const initialState: AggregateDataState = {
     sheetNames: [],
     selectedRange: 5,
     chartData: null,
+    allBalls: [],
     matchCount: 0,
 };
 
@@ -85,6 +88,7 @@ export const useAggregateData = (isSignedIn: boolean) => {
                 ...prev,
                 isLoading: false,
                 chartData,
+                allBalls: matchData.flatMap((m) => m.balls),
                 matchCount: matchData.length,
             }));
             return;
@@ -136,6 +140,7 @@ export const useAggregateData = (isSignedIn: boolean) => {
                     ...prev,
                     isLoading: false,
                     chartData,
+                    allBalls: matchData.flatMap((m) => m.balls),
                     matchCount: matchData.length,
                     error: failedCount > 0
                         ? `${failedCount} match(es) could not be loaded.`

@@ -18,7 +18,7 @@ const BowlerTypeChart = ({ data }: BowlerTypeChartProps) => {
     if (data.length === 0) return null;
 
     return (
-        <ChartCard title="Takes by Bowler Type">
+        <ChartCard title="Takes by Bowler Type" description="Clean takes versus errors for each bowler type. Shows which bowling styles you handle best.">
             <ResponsiveContainer width="100%" height={250}>
                 <BarChart
                     data={data}

@@ -19,7 +19,7 @@ const TrendLineChart = ({ data }: TrendLineChartProps) => {
     if (data.length === 0) return null;
 
     return (
-        <ChartCard title="Performance Trend">
+        <ChartCard title="Performance Trend" description="Clean take and throw-in percentages over time. Track how your keeping consistency changes across matches.">
             <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />

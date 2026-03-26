@@ -6,6 +6,7 @@ import { useAggregateData } from "../../hooks/useAggregateData";
 import { computeAggregateStats } from "../../../../common/utils";
 import type {
   AggregateChartData,
+  BallEntry,
   MatchAggregateData,
   MatchRangeOption,
   MatchStatsComputed,
@@ -41,6 +42,7 @@ const VisualisePage = ({
 
   const [currentStats, setCurrentStats] = useState<MatchStatsComputed | null>(null);
   const [currentChartData, setCurrentChartData] = useState<AggregateChartData | null>(null);
+  const [currentBalls, setCurrentBalls] = useState<BallEntry[]>([]);
   const [currentLoading, setCurrentLoading] = useState(false);
   const [currentError, setCurrentError] = useState<string | null>(null);
 
@@ -67,6 +69,7 @@ const VisualisePage = ({
 
         setCurrentStats(meta.statSections);
         setCurrentChartData(computeAggregateStats([currentMatch]));
+        setCurrentBalls(balls);
       })
       .catch((err) => {
         console.error("Error loading current match visualisation:", err);
@@ -87,6 +90,7 @@ const VisualisePage = ({
   const error = isCurrentMatchView ? currentError : aggregate.error;
   const chartData = isCurrentMatchView ? currentChartData : aggregate.chartData;
 
+  const balls = isCurrentMatchView ? currentBalls : aggregate.allBalls;
   const hasCurrentStats = Boolean(currentStats && currentStats.length > 0);
   const hasChartData = Boolean(chartData && chartData.takeResultBreakdown.length > 0);
   const hasAnyData = isCurrentMatchView
@@ -144,7 +148,7 @@ const VisualisePage = ({
                     <TakeResultChart data={chartData.takeResultBreakdown} />
                   </Col>
                 </Row>
-                <DeliveryPositionGrid data={chartData.deliveryPositionHeatmap} />
+                <DeliveryPositionGrid data={chartData.deliveryPositionHeatmap} balls={balls} />
               </div>
             ) : (
               <div className="text-center text-muted py-5">

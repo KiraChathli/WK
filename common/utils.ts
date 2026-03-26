@@ -556,7 +556,7 @@ const getBowlerStyle = (bowlerType: string): Exclude<HeatmapBowlerFilter, "both"
 const buildDeliveryHeatmap = (balls: BallEntry[]): AggregateDeliveryPositionCell[] => {
     const positionGroups = new Map<string, { total: number; clean: number }>();
     for (const ball of balls) {
-        if (!ball.deliveryPosition) continue;
+        if (!ball.deliveryPosition || ball.takeResult === "No touch") continue;
         if (!positionGroups.has(ball.deliveryPosition)) {
             positionGroups.set(ball.deliveryPosition, { total: 0, clean: 0 });
         }

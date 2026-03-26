@@ -24,7 +24,7 @@ const DifficultyPieChart = ({ data }: DifficultyPieChartProps) => {
     ];
 
     return (
-        <ChartCard title="Collection Difficulty" className="h-100">
+        <ChartCard title="Collection Difficulty" description="Proportion of regulation (routine) vs difficult collections faced." className="h-100">
             <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                     <Pie

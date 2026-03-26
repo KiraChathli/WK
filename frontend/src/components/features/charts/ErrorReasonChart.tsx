@@ -19,7 +19,7 @@ const ErrorReasonChart = ({ data }: ErrorReasonChartProps) => {
     const height = Math.max(data.length * 40 + 20, 120);
 
     return (
-        <ChartCard title="Error Reasons">
+        <ChartCard title="Error Reasons" description="How many times each type of error occurred. Identifies the most common mistakes to work on.">
             <ResponsiveContainer width="100%" height={height}>
                 <BarChart
                     data={data}
