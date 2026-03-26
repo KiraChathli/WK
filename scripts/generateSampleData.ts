@@ -7,6 +7,7 @@ import type {
   CollectionDifficulty,
   ErrorReason,
   TakeResult,
+  WkPosition,
 } from "../common/types.ts";
 import {
   bowlerTypes,
@@ -15,6 +16,7 @@ import {
   errorReasons,
   takeResults,
   throwInResults,
+  wkPositions,
 } from "../common/types.ts";
 import * as utils from "../common/utils.ts";
 dotenv.config();
@@ -85,6 +87,11 @@ function generateMatchBalls(startTime: Date): BallEntry[] {
 
   for (let over = 0; over < NUM_OVERS; over++) {
     const bowlerType: BowlerType = utils.getRandomElement(bowlerTypes);
+    const wkPosition: WkPosition = bowlerType.includes("seam")
+      ? utils.getRandomElement(wkPositions)
+      : Math.random() < 0.75
+        ? "Up"
+        : "Back";
 
     let validBalls = 0;
     while (validBalls < OVER_LENGTH) {
@@ -112,6 +119,7 @@ function generateMatchBalls(startTime: Date): BallEntry[] {
         timestamp,
         overCount: { over, ball: extraType ? validBalls + 1 : validBalls },
         bowlerType,
+        wkPosition,
         deliveryPosition: utils.getRandomElement(deliveryPositions) as any,
         takeResult,
         collectionDifficulty,

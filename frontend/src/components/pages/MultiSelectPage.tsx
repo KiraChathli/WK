@@ -5,8 +5,10 @@ import {
   errorReasons,
   takeResults,
   throwInResults,
+  wkPositions,
   type PageType,
 } from "../../../../common/types";
+import BowlerTypeBuilder from "../common/BowlerTypeBuilder";
 import DeliveryPositionMultiSelect from "../common/DeliveryPositionMultiSelect";
 import MultiSelect from "../common/MultiSelect";
 
@@ -25,6 +27,10 @@ const pageConfig: { [key in PageType]: PageConfig } = {
   bowler: {
     title: "Bowler Type",
     options: bowlerTypes,
+  },
+  keeper: {
+    title: "Keeper Position",
+    options: wkPositions,
   },
   delivery: {
     title: "Delivery Location",
@@ -65,6 +71,8 @@ const MultiSelectPage = ({ pageType, selectedValue, onChange }: Props) => {
           selectedValue={selectedValue}
           onChange={onChange}
         />
+      ) : pageType === "bowler" ? (
+        <BowlerTypeBuilder selectedValue={selectedValue} onChange={onChange} />
       ) : (
         <MultiSelect
           options={config.options}

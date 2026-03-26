@@ -9,7 +9,7 @@ import {
     Spinner,
 } from "react-bootstrap";
 import { PencilSquare, Trash } from "react-bootstrap-icons";
-import type { BallEntry, BowlerType, CollectionDifficulty, DeliveryPosition, ErrorReason, ExtraType, TakeResult, ThrowInResult } from "../../../../common/types";
+import type { BallEntry, BowlerType, CollectionDifficulty, DeliveryPosition, ErrorReason, ExtraType, TakeResult, ThrowInResult, WkPosition } from "../../../../common/types";
 import {
     bowlerTypes,
     deliveryPositions,
@@ -18,6 +18,7 @@ import {
     errorReasons,
     throwInResults,
     extraTypes,
+    wkPositions,
     successfulTakeResults,
 } from "../../../../common/types";
 import { SHEET_EMPTY_VALUE } from "../../../../common/consts";
@@ -55,18 +56,18 @@ const takeResultColor = (result: TakeResult): string => {
 
 const shortBowlerLabel = (type: BowlerType): string => {
     const map: Record<string, string> = {
-        "LA seam up": "LA Up",
-        "LA seam back": "LA Back",
-        "RA seam up": "RA Up",
-        "RA seam back": "RA Back",
-        "Leg spin": "Leg",
-        "Off spin": "Off",
-        "LA spin": "LA Spin",
+        "RA seam": "RA Seam",
+        "LA seam": "LA Seam",
+        "RA leg spin": "RA Leg",
+        "RA off spin": "RA Off",
+        "LA leg spin": "LA Leg",
+        "LA off spin": "LA Off",
     };
     return map[type] || type;
 };
 
-const shortDeliveryLabel = (pos: DeliveryPosition): string => {
+const shortDeliveryLabel = (pos: DeliveryPosition | undefined): string => {
+    if (!pos) return "No delivery";
     const map: Record<string, string> = {
         "High Off Side": "Hi Off",
         "High Straight": "Hi Str",
@@ -225,6 +226,11 @@ const BallsTab = ({ matchId, isSignedIn, onBallsChanged }: BallsTabProps) => {
                                                     <Badge bg="light" text="dark" className="fw-normal border">
                                                         {shortBowlerLabel(ball.bowlerType)}
                                                     </Badge>
+                                                    {ball.wkPosition && (
+                                                        <Badge bg="info" className="fw-normal">
+                                                            WK: {ball.wkPosition}
+                                                        </Badge>
+                                                    )}
                                                     <Badge bg="light" text="dark" className="fw-normal border">
                                                         {shortDeliveryLabel(ball.deliveryPosition)}
                                                     </Badge>
@@ -310,12 +316,25 @@ const BallsTab = ({ matchId, isSignedIn, onBallsChanged }: BallsTabProps) => {
                             </Form.Group>
 
                             <Form.Group>
+                                <Form.Label className="small text-muted fw-bold text-uppercase mb-1">Keeper Position</Form.Label>
+                                <Form.Select
+                                    size="sm"
+                                    value={editBall.wkPosition || ""}
+                                    onChange={(e) => setEditBall({ ...editBall, wkPosition: (e.target.value || undefined) as WkPosition | undefined })}
+                                >
+                                    <option value="">-</option>
+                                    {wkPositions.map((position) => <option key={position} value={position}>{position}</option>)}
+                                </Form.Select>
+                            </Form.Group>
+
+                            <Form.Group>
                                 <Form.Label className="small text-muted fw-bold text-uppercase mb-1">Delivery</Form.Label>
                                 <Form.Select
                                     size="sm"
-                                    value={editBall.deliveryPosition}
-                                    onChange={(e) => setEditBall({ ...editBall, deliveryPosition: e.target.value as DeliveryPosition })}
+                                    value={editBall.deliveryPosition || ""}
+                                    onChange={(e) => setEditBall({ ...editBall, deliveryPosition: (e.target.value || undefined) as DeliveryPosition | undefined })}
                                 >
+                                    <option value="">-</option>
                                     {deliveryPositions.map((p) => <option key={p} value={p}>{p}</option>)}
                                 </Form.Select>
                             </Form.Group>

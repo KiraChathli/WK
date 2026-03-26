@@ -1,10 +1,15 @@
 import {
+  type AggregateDeliveryPositionCell,
   type BallEntry,
   type MatchAggregateData,
   type AggregateChartData,
   type AggregateAverages,
+  type BowlerType,
+  type DeliveryPosition,
+  type HeatmapBowlerFilter,
   SHEET_HEADERS,
   type SheetMetadata,
+  type WkPosition,
   successfulTakeResults,
   successfulThrowInResults,
   type MatchStatsComputed,
@@ -160,7 +165,7 @@ const generateStatsFormulas = () => {
 
 /**
  * Updates a ball entry at a specific row index (0-based) in the sheet.
- * Row index 0 corresponds to sheet row 2 (D2:M2).
+ * Row index 0 corresponds to sheet row 2.
  */
 export const updateBallInSheet = async (
   ball: BallEntry,
@@ -171,10 +176,11 @@ export const updateBallInSheet = async (
   const spreadsheetId = getEnvVar("SPREADSHEET_ID");
   const sheetRow = rowIndex + 2; // Data starts at row 2
   const values = [formatBallRow(ball)];
+  const endCol = getColumnLetter(3 + SHEET_HEADERS.length - 1);
 
   await googleSheetsApi.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetName}!D${sheetRow}:M${sheetRow}`,
+    range: `${sheetName}!D${sheetRow}:${endCol}${sheetRow}`,
     valueInputOption: "USER_ENTERED",
     resource: { values },
   });
@@ -400,33 +406,69 @@ export const readMatchInfo = async (
  * Converts a data object into a flat array for Google Sheets
  */
 export const formatBallRow = (entry: BallEntry): string[] => {
+  const toSheetValue = (value: string | undefined) =>
+    value && value.trim().length > 0 ? value : SHEET_EMPTY_VALUE;
+
   return [
     entry.timestamp.toISOString(),
     entry.overCount.over.toString(),
     entry.overCount.ball.toString(),
     entry.bowlerType,
-    entry.deliveryPosition,
+    toSheetValue(entry.wkPosition),
+    toSheetValue(entry.deliveryPosition),
     entry.takeResult,
-    entry.collectionDifficulty || SHEET_EMPTY_VALUE,
-    entry.errorReason || SHEET_EMPTY_VALUE,
-    entry.throwInResult || SHEET_EMPTY_VALUE,
-    entry.extraType || SHEET_EMPTY_VALUE,
+    toSheetValue(entry.collectionDifficulty),
+    toSheetValue(entry.errorReason),
+    toSheetValue(entry.throwInResult),
+    toSheetValue(entry.extraType),
   ];
 };
 
+const parseOptionalCell = (value: string | undefined): string | undefined => {
+  if (!value || value === SHEET_EMPTY_VALUE) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const parseWkPosition = (value: string | undefined): WkPosition | undefined => {
+  const normalized = parseOptionalCell(value)?.toLowerCase();
+  if (normalized === "up") return "Up";
+  if (normalized === "back") return "Back";
+  return undefined;
+};
+
+const normalizeBowlerType = (
+  value: string | undefined
+): BowlerType | string => {
+  const trimmed = parseOptionalCell(value);
+  if (!trimmed) return "RA seam";
+
+  const lower = trimmed.toLowerCase();
+  if (lower === "ra seam") return "RA seam";
+  if (lower === "la seam") return "LA seam";
+  if (lower === "ra leg spin") return "RA leg spin";
+  if (lower === "ra off spin") return "RA off spin";
+  if (lower === "la leg spin") return "LA leg spin";
+  if (lower === "la off spin") return "LA off spin";
+
+  // Remaining legacy value still present in older rows.
+  if (lower === "la spin") return "LA off spin";
+
+  return trimmed;
+};
+
 export const parseBallRow = (row: string[]): BallEntry => {
-  const [
-    timestampStr,
-    overStr,
-    ballStr,
-    bowlerType,
-    deliveryPosition,
-    takeResult,
-    collectionDifficulty,
-    errorReason,
-    throwInResult,
-    extraType,
-  ] = row;
+  const timestampStr = row[0];
+  const overStr = row[1];
+  const ballStr = row[2];
+  const bowlerTypeRaw = row[3];
+  const wkPositionRaw = row[4];
+  const deliveryPositionRaw = row[5];
+  const takeResultRaw = row[6];
+  const collectionDifficultyRaw = row[7];
+  const errorReasonRaw = row[8];
+  const throwInResultRaw = row[9];
+  const extraTypeRaw = row[10];
 
   return {
     timestamp: new Date(timestampStr),
@@ -434,13 +476,14 @@ export const parseBallRow = (row: string[]): BallEntry => {
       over: Number(overStr) || 0,
       ball: Number(ballStr) || 0,
     },
-    bowlerType: bowlerType as any,
-    deliveryPosition: deliveryPosition as any,
-    takeResult: takeResult as any,
-    collectionDifficulty: collectionDifficulty === SHEET_EMPTY_VALUE ? undefined : (collectionDifficulty as any),
-    errorReason: errorReason === SHEET_EMPTY_VALUE ? undefined : (errorReason as any),
-    throwInResult: throwInResult === SHEET_EMPTY_VALUE ? undefined : (throwInResult as any),
-    extraType: extraType === SHEET_EMPTY_VALUE || !extraType ? undefined : (extraType as any),
+    bowlerType: normalizeBowlerType(bowlerTypeRaw) as any,
+    wkPosition: parseWkPosition(wkPositionRaw),
+    deliveryPosition: parseOptionalCell(deliveryPositionRaw) as DeliveryPosition | undefined,
+    takeResult: (parseOptionalCell(takeResultRaw) || "No touch") as any,
+    collectionDifficulty: parseOptionalCell(collectionDifficultyRaw) as any,
+    errorReason: parseOptionalCell(errorReasonRaw) as any,
+    throwInResult: parseOptionalCell(throwInResultRaw) as any,
+    extraType: parseOptionalCell(extraTypeRaw) as any,
   };
 };
 
@@ -503,6 +546,41 @@ export const formatShortMatchLabel = (sheetName: string): string => {
     return `${prefix}${parseInt(day)} ${months[parseInt(monthStr) - 1]} #${num}`;
 };
 
+const getBowlerStyle = (bowlerType: string): Exclude<HeatmapBowlerFilter, "both"> | null => {
+    const lower = bowlerType.toLowerCase();
+    if (lower.includes("seam")) return "seam";
+    if (lower.includes("spin")) return "spin";
+    return null;
+};
+
+const buildDeliveryHeatmap = (balls: BallEntry[]): AggregateDeliveryPositionCell[] => {
+    const positionGroups = new Map<string, { total: number; clean: number }>();
+    for (const ball of balls) {
+        if (!ball.deliveryPosition) continue;
+        if (!positionGroups.has(ball.deliveryPosition)) {
+            positionGroups.set(ball.deliveryPosition, { total: 0, clean: 0 });
+        }
+        const group = positionGroups.get(ball.deliveryPosition)!;
+        group.total++;
+        if (successfulTakeResults.includes(ball.takeResult as any)) {
+            group.clean++;
+        }
+    }
+
+    return Array.from(positionGroups.entries()).map(([position, { total, clean }]) => ({
+        position,
+        total,
+        cleanTakes: clean,
+        cleanPct: total > 0 ? Math.round((clean / total) * 1000) / 10 : 0,
+    }));
+};
+
+const parseNullableNumber = (value: string | undefined): number | null => {
+    if (!value) return null;
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
 /**
  * Computes aggregate chart data from an array of match data.
  * Pure function — no side effects, no API calls.
@@ -513,8 +591,8 @@ export const computeAggregateStats = (
     // 1. Build per-match trend data
     const trendData = matches.map((m) => ({
         label: formatShortMatchLabel(m.sheetName),
-        cleanTakesPct: m.stats["Clean Takes %"] ? parseFloat(m.stats["Clean Takes %"]) : null,
-        cleanThrowInsPct: m.stats["Clean Throw Ins %"] ? parseFloat(m.stats["Clean Throw Ins %"]) : null,
+        cleanTakesPct: parseNullableNumber(m.stats["Clean Takes %"]),
+        cleanThrowInsPct: parseNullableNumber(m.stats["Clean Throw Ins %"]),
     }));
 
     // 2. Flatten all balls across matches
@@ -567,25 +645,14 @@ export const computeAggregateStats = (
     }
     const collectionDifficultyRatio = { regulation, difficult };
 
-    // 7. Delivery position heatmap
-    const positionGroups = new Map<string, { total: number; clean: number }>();
-    for (const ball of allBalls) {
-        if (!positionGroups.has(ball.deliveryPosition)) {
-            positionGroups.set(ball.deliveryPosition, { total: 0, clean: 0 });
-        }
-        const group = positionGroups.get(ball.deliveryPosition)!;
-        group.total++;
-        if (successfulTakeResults.includes(ball.takeResult as any)) {
-            group.clean++;
-        }
-    }
-    const deliveryPositionHeatmap = Array.from(positionGroups.entries())
-        .map(([position, { total, clean }]) => ({
-            position,
-            total,
-            cleanTakes: clean,
-            cleanPct: total > 0 ? Math.round((clean / total) * 1000) / 10 : 0,
-        }));
+    // 7. Delivery position heatmap (both / seam / spin)
+    const seamBalls = allBalls.filter((ball) => getBowlerStyle(ball.bowlerType) === "seam");
+    const spinBalls = allBalls.filter((ball) => getBowlerStyle(ball.bowlerType) === "spin");
+    const deliveryPositionHeatmap = {
+        both: buildDeliveryHeatmap(allBalls),
+        seam: buildDeliveryHeatmap(seamBalls),
+        spin: buildDeliveryHeatmap(spinBalls),
+    };
 
     // 8. Take result breakdown
     const takeResultCounts = new Map<string, number>();
@@ -642,4 +709,3 @@ const computeAverages = (
 
     return { cleanTakesPct, cleanThrowInsPct, errorRate, regulationPct };
 };
-

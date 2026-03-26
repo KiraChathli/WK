@@ -7,39 +7,43 @@ type Props = {
   selections: SelectionState;
   setSelections: Dispatch<SetStateAction<SelectionState>>;
   onReview: () => void;
+  onSkipToThrowIn: () => void;
+  onSkipToNextBall: () => void;
   activeIndex: number;
   visiblePages: PageType[];
   setLastUpdatedPage: Dispatch<SetStateAction<PageType | null>>;
 };
 
 const MainPage = ({
-    selections,
-    setSelections,
-    onReview,
-    activeIndex,
-    visiblePages,
-    setLastUpdatedPage
+  selections,
+  setSelections,
+  onReview,
+  onSkipToThrowIn,
+  onSkipToNextBall,
+  activeIndex,
+  visiblePages,
+  setLastUpdatedPage,
 }: Props) => {
-// ... (lines 24-57 same) -> I will just replace the Props definition and the button usage.
   const currentPageType = visiblePages[activeIndex];
   const isLastStep = activeIndex === visiblePages.length - 1;
-  const selectedValue = currentPageType
-    ? selections[currentPageType] ?? ""
-    : "";
+  const selectedValue = currentPageType ? selections[currentPageType] ?? "" : "";
   const isCurrentStepValid = selectedValue.length > 0;
+
+  const updateSingleSelection = (pageType: PageType, value: string) =>
+    setSelections((prev: SelectionState) => ({ ...prev, [pageType]: value }));
 
   const handleUpdateSelection = (pageType: PageType, value: string) => {
     updateSingleSelection(pageType, value);
-    setLastUpdatedPage(pageType);
 
     if (pageType === "take") {
       updateSingleSelection("collection", "");
       updateSingleSelection("error", "");
     }
-  };
 
-  const updateSingleSelection = (pageType: PageType, value: string) =>
-    setSelections((prev: SelectionState) => ({ ...prev, [pageType]: value }));
+    if (value.trim().length > 0) {
+      setLastUpdatedPage(pageType);
+    }
+  };
 
   if (!currentPageType) {
     return null;
@@ -54,13 +58,25 @@ const MainPage = ({
             selectedValue={selectedValue}
             onChange={(value) => handleUpdateSelection(currentPageType, value)}
           />
+
+          {currentPageType === "delivery" && selections.bowler && selections.keeper && (
+            <Row className="g-2 mt-2">
+              <Col xs={12} md={6}>
+                <Button variant="outline-secondary" className="w-100" onClick={onSkipToThrowIn}>
+                  Skip to Throw Ins
+                </Button>
+              </Col>
+              <Col xs={12} md={6}>
+                <Button variant="outline-danger" className="w-100" onClick={onSkipToNextBall}>
+                  Skip to Next Ball
+                </Button>
+              </Col>
+            </Row>
+          )}
+
           {isLastStep && selectedValue && (
             <div className="mt-3 text-center">
-              <Button
-                variant="primary"
-                onClick={onReview}
-                disabled={!isCurrentStepValid}
-              >
+              <Button variant="primary" onClick={onReview} disabled={!isCurrentStepValid}>
                 Next
               </Button>
             </div>

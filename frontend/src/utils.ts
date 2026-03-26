@@ -10,10 +10,12 @@ import type {
   TakeResult,
   ThrowInResult,
   ExtraType,
+  WkPosition,
 } from "../../common/types";
 
 export const PAGE_LABELS: Record<PageType, string> = {
   bowler: "Bowler",
+  keeper: "Keeper",
   delivery: "Delivery",
   take: "Take",
   collection: "Difficulty",
@@ -29,12 +31,13 @@ export const selectionStateToBallEntry = (
   timestamp: new Date(),
   overCount,
   bowlerType: selections.bowler as BowlerType,
-  deliveryPosition: selections.delivery as DeliveryPosition,
+  wkPosition: (selections.keeper as WkPosition) || undefined,
+  deliveryPosition: (selections.delivery as DeliveryPosition) || undefined,
   takeResult: selections.take as TakeResult,
   collectionDifficulty:
     (selections.collection as CollectionDifficulty) || undefined,
   errorReason: (selections.error as ErrorReason) || undefined,
-  throwInResult: selections.throwIn as ThrowInResult,
+  throwInResult: (selections.throwIn as ThrowInResult) || undefined,
   extraType,
 });
 

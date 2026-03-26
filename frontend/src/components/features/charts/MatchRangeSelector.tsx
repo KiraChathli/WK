@@ -13,10 +13,19 @@ const MatchRangeSelector = ({ value, onChange, totalMatches }: MatchRangeSelecto
             value={value}
             onChange={(e) => {
                 const val = e.target.value;
-                onChange(val === "all" ? "all" : (Number(val) as MatchRangeOption));
+                if (val === "all") {
+                    onChange("all");
+                    return;
+                }
+                if (val === "current") {
+                    onChange("current");
+                    return;
+                }
+                onChange(Number(val) as MatchRangeOption);
             }}
             size="sm"
         >
+            <option value="current">Current match</option>
             <option value={5}>Last 5 matches</option>
             <option value={10}>Last 10 matches</option>
             <option value={20}>Last 20 matches</option>

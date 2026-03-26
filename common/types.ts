@@ -1,17 +1,18 @@
-
-// 1. Bowler Types
+// 1. Bowler and Keeper
 export const bowlerTypes = [
-  "LA seam up",
-  "LA seam back",
-  "RA seam up",
-  "RA seam back",
-  "Leg spin",
-  "Off spin",
-  "LA spin",
+  "RA seam",
+  "LA seam",
+  "RA leg spin",
+  "RA off spin",
+  "LA leg spin",
+  "LA off spin",
 ] as const;
 export type BowlerType = (typeof bowlerTypes)[number];
 
-// 2. Delivery Positions (The 3x3 Grid)
+export const wkPositions = ["Up", "Back"] as const;
+export type WkPosition = (typeof wkPositions)[number];
+
+// 2. Delivery Positions (the 3x3 grid)
 export const deliveryPositions = [
   "High Off Side",
   "High Straight",
@@ -45,55 +46,48 @@ export const successfulTakeResults = [
 ] as const;
 export type SuccessfulTakeResult = (typeof successfulTakeResults)[number];
 
-
-// 4. Outcome Details (Difficulty & Reasons)
+// 4. Outcome Details (difficulty and reasons)
 export const collectionDifficulties = ["Regulation", "Difficult"] as const;
 export type CollectionDifficulty = (typeof collectionDifficulties)[number];
 
 export const errorReasons = [
-  "Came up early",
-  "Weight backwards",
-  "Snatched at ball",
+  "Difficult stop",
   "Blocked vision",
-  "Just missed it",
-  "Large deviation",
+  "Deviation",
+  "Didn't carry",
+  "Technical error",
   "Unknown",
 ] as const;
 export type ErrorReason = (typeof errorReasons)[number];
-
-
 
 // 5. Throw-ins
 export const throwInResults = [
   "Clean",
   "Fumble stop",
   "Miss",
+  "Missed run out",
   "No touch",
 ] as const;
 export type ThrowInResult = (typeof throwInResults)[number];
 
-export const successfulThrowInResults = [
-  "Clean",
-] as const;
+export const successfulThrowInResults = ["Clean"] as const;
 export type SuccessfulThrowInResult = (typeof successfulThrowInResults)[number];
 
-export const extraTypes = [
-  "Wide",
-  "No ball",
-] as const;
+export const extraTypes = ["Wide", "No ball"] as const;
 export type ExtraType = (typeof extraTypes)[number];
 
 export const SHEET_HEADERS = [
-    "Timestamp",
-    "Over",
-    "Ball",
-    "Bowler",
-    "Delivery",
-    "Take",
-    "Collection Difficulty",
-    "Error Reason",
-    "Throw In",
-    "Extra"
+  "Timestamp",
+  "Over",
+  "Ball",
+  "Bowler",
+  "WK Position",
+  "Delivery",
+  "Take",
+  "Collection Difficulty",
+  "Error Reason",
+  "Throw In",
+  "Extra",
 ] as const;
 
 export type OverCount = {
@@ -105,7 +99,8 @@ export type BallEntry = {
   timestamp: Date;
   overCount: OverCount;
   bowlerType: BowlerType;
-  deliveryPosition: DeliveryPosition;
+  wkPosition: WkPosition | undefined;
+  deliveryPosition: DeliveryPosition | undefined;
   takeResult: TakeResult;
   collectionDifficulty: CollectionDifficulty | undefined;
   errorReason: ErrorReason | undefined;
@@ -115,99 +110,93 @@ export type BallEntry = {
 
 export type PageType =
   | "bowler"
+  | "keeper"
   | "delivery"
   | "take"
   | "collection"
   | "error"
   | "throwIn";
 
-
 export type SelectionState = {
   [K in PageType]: string;
 };
 
 export interface MatchInfo {
-    [key: string]: string;
+  [key: string]: string;
 }
 
 export interface MatchStats {
-    [key: string]: string;
+  [key: string]: string;
 }
 
 export interface SheetMetadata {
-    info: MatchInfo;
-    stats: MatchStats;
-    statSections: MatchStatsComputed;
+  info: MatchInfo;
+  stats: MatchStats;
+  statSections: MatchStatsComputed;
 }
 
-/** A single stat to display */
 export type MatchStatItem = {
-    label: string;
-    value: string;       // formatted display value e.g. "87.5%" or "12"
-    numericValue: number; // raw number for potential sorting / colouring
-    suffix?: string;     // "%" or "" — display hint
+  label: string;
+  value: string;
+  numericValue: number;
+  suffix?: string;
 };
 
-/** A group of stats with a section header */
 export type MatchStatSection = {
-    title: string;        // e.g. "Overall", "Pace vs Spin"
-    colorClass: string;   // Bootstrap colour e.g. "primary", "success"
-    icon: string;         // Emoji icon for section
-    stats: MatchStatItem[];
+  title: string;
+  colorClass: string;
+  icon: string;
+  stats: MatchStatItem[];
 };
 
-/** Full computed stats for a single match */
 export type MatchStatsComputed = MatchStatSection[];
 
-// Aggregate Visualisation Types
-
-/** A single match's stats + ball data bundled for aggregate analysis */
 export type MatchAggregateData = {
-    sheetName: string;       // e.g., "2025-02-20 - Match 1"
-    date: string;            // e.g., "2025-02-20"
-    matchNumber: number;
-    stats: MatchStats;
-    balls: BallEntry[];
+  sheetName: string;
+  date: string;
+  matchNumber: number;
+  stats: MatchStats;
+  balls: BallEntry[];
 };
 
-/** Range options for the match selector dropdown */
-export type MatchRangeOption = 5 | 10 | 20 | "all";
+export type MatchRangeOption = "current" | 5 | 10 | 20 | "all";
+export type AggregateRangeOption = Exclude<MatchRangeOption, "current">;
 
-/** Pre-computed averages across the selected range */
 export type AggregateAverages = {
+  cleanTakesPct: number | null;
+  cleanThrowInsPct: number | null;
+  errorRate: number | null;
+  regulationPct: number | null;
+};
+
+export type HeatmapBowlerFilter = "both" | "seam" | "spin";
+
+export type AggregateDeliveryPositionCell = {
+  position: string;
+  total: number;
+  cleanTakes: number;
+  cleanPct: number;
+};
+
+export type AggregateChartData = {
+  trendData: Array<{
+    label: string;
     cleanTakesPct: number | null;
     cleanThrowInsPct: number | null;
-    errorRate: number | null;
-    regulationPct: number | null;
-};
-
-/** Pre-computed aggregate stats for chart consumption */
-export type AggregateChartData = {
-    // Per-match trend data (for line charts)
-    trendData: Array<{
-        label: string;
-        cleanTakesPct: number | null;
-        cleanThrowInsPct: number | null;
-    }>;
-
-    // Calculated averages across the range
-    averages: AggregateAverages;
-
-    // Cross-match breakdowns
-    errorReasonBreakdown: Array<{ reason: string; count: number }>;
-    takesByBowlerType: Array<{
-        bowlerType: string;
-        cleanTakes: number;
-        errors: number;
-        total: number;
-        cleanPct: number;
-    }>;
-    collectionDifficultyRatio: { regulation: number; difficult: number };
-    deliveryPositionHeatmap: Array<{
-        position: string;
-        total: number;
-        cleanTakes: number;
-        cleanPct: number;
-    }>;
-    takeResultBreakdown: Array<{ result: string; count: number }>;
+  }>;
+  averages: AggregateAverages;
+  errorReasonBreakdown: Array<{ reason: string; count: number }>;
+  takesByBowlerType: Array<{
+    bowlerType: string;
+    cleanTakes: number;
+    errors: number;
+    total: number;
+    cleanPct: number;
+  }>;
+  collectionDifficultyRatio: { regulation: number; difficult: number };
+  deliveryPositionHeatmap: Record<
+    HeatmapBowlerFilter,
+    AggregateDeliveryPositionCell[]
+  >;
+  takeResultBreakdown: Array<{ result: string; count: number }>;
 };

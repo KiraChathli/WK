@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { listSheetNames, readMatchInfo, readBallData } from "../api/sheets";
 import { computeAggregateStats } from "../../../common/utils";
 import type {
+    AggregateRangeOption,
     MatchAggregateData,
-    MatchRangeOption,
     AggregateChartData,
 } from "../../../common/types";
 
@@ -11,7 +11,7 @@ type AggregateDataState = {
     isLoading: boolean;
     error: string | null;
     sheetNames: string[];
-    selectedRange: MatchRangeOption;
+    selectedRange: AggregateRangeOption;
     chartData: AggregateChartData | null;
     matchCount: number;
 };
@@ -155,7 +155,7 @@ export const useAggregateData = (isSignedIn: boolean) => {
             });
     }, [state.sheetNames, state.selectedRange]);
 
-    const setSelectedRange = useCallback((range: MatchRangeOption) => {
+    const setSelectedRange = useCallback((range: AggregateRangeOption) => {
         setState((prev) => ({ ...prev, selectedRange: range }));
     }, []);
 

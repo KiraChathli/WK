@@ -37,6 +37,8 @@ const App = () => {
     setLastUpdatedPage,
     goToStep,
     handleSubmit,
+    handleSkipToThrowIn,
+    handleQuickNoTouchSubmit,
     handleLogout,
     signIn,
     hideToast,
@@ -101,6 +103,8 @@ const App = () => {
                                             selections={selections}
                                             setSelections={setSelections}
                                             onReview={() => goToStep(visiblePages.length)}
+                                            onSkipToThrowIn={handleSkipToThrowIn}
+                                            onSkipToNextBall={handleQuickNoTouchSubmit}
                                             activeIndex={currentStepIndex}
                                             visiblePages={visiblePages}
                                             setLastUpdatedPage={setLastUpdatedPage}
@@ -117,7 +121,7 @@ const App = () => {
                             isSignedIn={isSignedIn}
                             isSummary={false}
                             visiblePages={[]}
-                            selections={{ bowler: "", delivery: "", take: "", collection: "", error: "", throwIn: "" }}
+                            selections={{ bowler: "", keeper: "", delivery: "", take: "", collection: "", error: "", throwIn: "" }}
                             currentStepIndex={0}
                             onLogout={handleLogout}
                             onStepClick={() => {}}
