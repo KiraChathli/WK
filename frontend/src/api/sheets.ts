@@ -1,6 +1,6 @@
 import { gapi } from "gapi-script";
 import { GOOGLE_API_DISCOVERY, GOOGLE_API_SCOPE } from "../../../common/consts";
-import type { BallEntry } from "../../../common/types.ts";
+import type { BallEntry, MatchSummary } from "../../../common/types.ts";
 import * as utils from "../../../common/utils.ts";
 import {
   getEmailLocalStorage,
@@ -91,6 +91,9 @@ export const readMatchInfo = async (sheetName: string) =>
 
 export const listSheetNames = async (): Promise<string[]> =>
     await utils.listSheetNames(gapi.client.sheets);
+
+export const listMatches = async (): Promise<MatchSummary[]> =>
+    await utils.listMatches(gapi.client.sheets);
 
 export const getColumnLetter = utils.getColumnLetter;
 

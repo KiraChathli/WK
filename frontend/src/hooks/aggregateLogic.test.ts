@@ -42,23 +42,39 @@ describe("aggregateLogic", () => {
     expect(getUncachedSheets(["a", "b", "c"], cache)).toEqual(["b", "c"]);
   });
 
-  it("builds match aggregate data from sheet naming conventions", () => {
+  it("builds match aggregate data using metadata before sheet-name fallback", () => {
     const built = buildMatchAggregateData(
       "2025-03-01 - Match 12",
+      {
+        Date: "2025-02-28",
+        "Match Number": "7",
+      },
       { "Clean Takes %": "80" },
       [makeBall()]
     );
+
     expect(built).toEqual({
       sheetName: "2025-03-01 - Match 12",
-      date: "2025-03-01",
-      matchNumber: 12,
+      date: "2025-02-28",
+      matchNumber: 7,
       stats: { "Clean Takes %": "80" },
       balls: [makeBall()],
     });
 
-    const fallback = buildMatchAggregateData("Unexpected Name", {}, []);
-    expect(fallback.date).toBe("");
-    expect(fallback.matchNumber).toBe(1);
+    const fallback = buildMatchAggregateData(
+      "2025-03-01 - Match 12",
+      {
+        Date: "not-a-date",
+      },
+      {},
+      []
+    );
+    expect(fallback.date).toBe("2025-03-01");
+    expect(fallback.matchNumber).toBe(12);
+
+    const unresolved = buildMatchAggregateData("Unexpected Name", {}, {}, []);
+    expect(unresolved.date).toBe("");
+    expect(unresolved.matchNumber).toBe(1);
   });
 
   it("returns chronological cached match data in requested order", () => {
@@ -87,6 +103,48 @@ describe("aggregateLogic", () => {
 
     const result = getChronologicalMatchData(["latest", "older", "missing"], cache);
     expect(result.map((m) => m.sheetName)).toEqual(["older", "latest"]);
+  });
+
+  it("keeps newest-first selection order compatible with chronological reversal", () => {
+    const newestFirst = ["2025-04-10 - Match 2", "2025-04-10 - Match 1", "2025-04-01 - Match 1"];
+
+    expect(getSheetsForSelectedRange(newestFirst, 2)).toEqual([
+      "2025-04-10 - Match 2",
+      "2025-04-10 - Match 1",
+    ]);
+
+    const cache = new Map<string, MatchAggregateData>([
+      [
+        "2025-04-10 - Match 2",
+        {
+          sheetName: "2025-04-10 - Match 2",
+          date: "2025-04-10",
+          matchNumber: 2,
+          stats: {},
+          balls: [],
+        },
+      ],
+      [
+        "2025-04-10 - Match 1",
+        {
+          sheetName: "2025-04-10 - Match 1",
+          date: "2025-04-10",
+          matchNumber: 1,
+          stats: {},
+          balls: [],
+        },
+      ],
+    ]);
+
+    const chronological = getChronologicalMatchData(
+      getSheetsForSelectedRange(newestFirst, 2),
+      cache
+    );
+
+    expect(chronological.map((m) => m.sheetName)).toEqual([
+      "2025-04-10 - Match 1",
+      "2025-04-10 - Match 2",
+    ]);
   });
 
   it("counts rejected settled results", () => {

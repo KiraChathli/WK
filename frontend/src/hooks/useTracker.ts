@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   initGoogleClient,
-  listSheetNames,
+  listMatches,
   logBallToSheet,
   readBallData,
   signIn,
   signOut,
 } from "../api/sheets";
 import type { BallEntry, ExtraType, PageType, SelectionState } from "../../../common/types";
-import { SAMPLE_DATA_PREFIX } from "../../../common/consts";
 import { getLocalIsoDate, selectionStateToBallEntry } from "../utils";
 import {
   EMPTY_SELECTIONS,
@@ -21,6 +20,7 @@ import {
   getNextOverCount,
   getVisiblePagesFor,
   parseMatchFromSearch,
+  resolveMatchSheetName,
 } from "./trackerLogic";
 
 /** Write or clear the ?match= query param without a full navigation */
@@ -90,20 +90,13 @@ export const useTracker = () => {
     if (!isSignedIn || !isMatchSelected) return;
 
     const realName = baseMatchId;
-    const sampleName = `${SAMPLE_DATA_PREFIX} ${baseMatchId}`;
 
-    listSheetNames()
-      .then((names) => {
-        if (names.includes(realName)) {
-          setResolvedMatchId(realName);
-          setIsSampleMatch(false);
-          setHasUnconfirmedInitialUrlMatch(false);
-          return;
-        }
-
-        if (names.includes(sampleName)) {
-          setResolvedMatchId(sampleName);
-          setIsSampleMatch(true);
+    listMatches()
+      .then((matches) => {
+        const resolved = resolveMatchSheetName(matches, matchDate, matchNumber);
+        if (resolved) {
+          setResolvedMatchId(resolved.sheetName);
+          setIsSampleMatch(resolved.isSample);
           setHasUnconfirmedInitialUrlMatch(false);
           return;
         }
@@ -120,7 +113,14 @@ export const useTracker = () => {
         setResolvedMatchId(realName);
         setIsSampleMatch(false);
       });
-  }, [isSignedIn, isMatchSelected, baseMatchId, hasUnconfirmedInitialUrlMatch]);
+  }, [
+    isSignedIn,
+    isMatchSelected,
+    baseMatchId,
+    matchDate,
+    matchNumber,
+    hasUnconfirmedInitialUrlMatch,
+  ]);
 
   const refreshBallData = async () => {
     if (!isSignedIn || !isMatchSelected || !resolvedMatchId) return;

@@ -1,15 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_DATA_PREFIX, SHEET_EMPTY_VALUE } from "./consts";
 import {
+  buildSheetRange,
   computeAggregateStats,
   deleteBallFromSheet,
   formatBallRow,
   formatShortMatchLabel,
   getColumnLetter,
   getEnvVar,
+  listMatches,
   listSheetNames,
   logMultipleBallsToSheet,
   parseBallRow,
+  parseMatchIdentity,
   readBallData,
   readMatchInfo,
   updateBallInSheet,
@@ -79,6 +82,15 @@ describe("common/utils", () => {
     });
   });
 
+  describe("buildSheetRange", () => {
+    it("quotes sheet names for A1 ranges and escapes apostrophes", () => {
+      expect(buildSheetRange("Sheet 1", "A1:B2")).toBe("'Sheet 1'!A1:B2");
+      expect(buildSheetRange("Coach's Notes / A", "D2:Z")).toBe(
+        "'Coach''s Notes / A'!D2:Z"
+      );
+    });
+  });
+
   describe("formatBallRow and parseBallRow", () => {
     it("round-trips values including placeholders", () => {
       const ball = makeBall(2, 3, {
@@ -129,15 +141,15 @@ describe("common/utils", () => {
     });
   });
 
-  describe("listSheetNames and formatShortMatchLabel", () => {
-    it("filters valid match sheets and sorts reverse lexicographically", async () => {
+  describe("listMatches/listSheetNames and formatShortMatchLabel", () => {
+    it("uses metadata first, falls back to legacy parsing, and sorts with undated sheets last", async () => {
       const api = createApi();
       const allSheets = [
-        "notes",
-        "2025-03-01 - Match X",
-        "2025-02-20 - Match 1",
-        `${SAMPLE_DATA_PREFIX} 2025-03-01 - Match 2`,
-        `${SAMPLE_DATA_PREFIX} 2024-12-31 - Match 1`,
+        "Notes",
+        "Renamed Real Match",
+        "Renamed Sample Match",
+        "2025-02-20 - Match 3",
+        "No Date Metadata Match",
       ];
       api.spreadsheets.get.mockResolvedValue({
         result: {
@@ -145,13 +157,93 @@ describe("common/utils", () => {
         },
       });
 
-      const result = await listSheetNames(api as any);
-      const expectedValid = [
-        "2025-02-20 - Match 1",
-        `${SAMPLE_DATA_PREFIX} 2025-03-01 - Match 2`,
-        `${SAMPLE_DATA_PREFIX} 2024-12-31 - Match 1`,
-      ];
-      expect(result).toEqual([...expectedValid].sort().reverse());
+      const byRange: Record<string, string[][] | undefined> = {
+        [buildSheetRange("Notes", "A:B")]: undefined,
+        [buildSheetRange("Renamed Real Match", "A:B")]: [
+          ["Match Info", ""],
+          ["Date", "2025-03-01"],
+          ["Match ID", "2025-03-01 - Match 2"],
+          ["Match Number", "2"],
+        ],
+        [buildSheetRange("Renamed Sample Match", "A:B")]: [
+          ["Match Info", ""],
+          ["Date", "03/01/2025"], // ambiguous, should fallback to Match ID
+          ["Match ID", `${SAMPLE_DATA_PREFIX} 2025-03-01 - Match 1`],
+          ["Match Number", "1"],
+        ],
+        [buildSheetRange("2025-02-20 - Match 3", "A:B")]: [
+          ["Match Info", ""],
+          ["Date", "not-a-date"],
+        ],
+        [buildSheetRange("No Date Metadata Match", "A:B")]: [
+          ["Match Info", ""],
+          ["Match ID", "legacy-name-removed"],
+          ["Match Number", "5"],
+        ],
+      };
+
+      api.spreadsheets.values.get.mockImplementation(({ range }: { range: string }) =>
+        Promise.resolve({ result: { values: byRange[range] } })
+      );
+
+      const matches = await listMatches(api as any);
+      expect(matches).toEqual([
+        {
+          sheetName: "Renamed Real Match",
+          date: "2025-03-01",
+          matchNumber: 2,
+          isSample: false,
+        },
+        {
+          sheetName: "Renamed Sample Match",
+          date: "2025-03-01",
+          matchNumber: 1,
+          isSample: true,
+        },
+        {
+          sheetName: "2025-02-20 - Match 3",
+          date: "2025-02-20",
+          matchNumber: 3,
+          isSample: false,
+        },
+        {
+          sheetName: "No Date Metadata Match",
+          date: null,
+          matchNumber: 5,
+          isSample: false,
+        },
+      ]);
+
+      const names = await listSheetNames(api as any);
+      expect(names).toEqual(matches.map((match) => match.sheetName));
+    });
+
+    it("parses match identity with metadata priority and legacy fallback", () => {
+      expect(
+        parseMatchIdentity("Custom Name", {
+          Date: "2025-04-10",
+          "Match Number": "2",
+          "Match ID": "2025-01-01 - Match 1",
+        })
+      ).toEqual({
+        sheetName: "Custom Name",
+        date: "2025-04-10",
+        matchNumber: 2,
+        isSample: false,
+      });
+
+      expect(
+        parseMatchIdentity("Another Name", {
+          Date: "03/04/2025",
+          "Match Number": "7",
+          "Match ID": `${SAMPLE_DATA_PREFIX} 2025-04-03 - Match 7`,
+        })
+      ).toEqual({
+        sheetName: "Another Name",
+        date: "2025-04-03",
+        matchNumber: 7,
+        isSample: true,
+      });
     });
 
     it("formats short labels and keeps invalid names unchanged", () => {
@@ -189,7 +281,7 @@ describe("common/utils", () => {
       expect(api.spreadsheets.values.append).toHaveBeenCalledWith(
         expect.objectContaining({
           spreadsheetId: "spreadsheet-id",
-          range: "Sheet 1!D2",
+          range: buildSheetRange("Sheet 1", "D2"),
           valueInputOption: "USER_ENTERED",
           resource: { values: [formatBallRow(ball)] },
         })
@@ -208,7 +300,7 @@ describe("common/utils", () => {
 
       expect(api.spreadsheets.values.append).toHaveBeenCalledWith(
         expect.objectContaining({
-          range: "Sheet 1!D2",
+          range: buildSheetRange("Sheet 1", "D2"),
           requestBody: { values: [formatBallRow(ball)] },
         })
       );
@@ -234,15 +326,17 @@ describe("common/utils", () => {
         (call: any[]) => call[0].range
       );
       expect(ranges).toEqual([
-        `${sheetName}!D2`,
-        `${sheetName}!D1`,
-        `${sheetName}!A1`,
-        `${sheetName}!A8`,
-        `${sheetName}!D2`,
+        buildSheetRange(sheetName, "D2"),
+        buildSheetRange(sheetName, "D1"),
+        buildSheetRange(sheetName, "A1"),
+        buildSheetRange(sheetName, "A8"),
+        buildSheetRange(sheetName, "D2"),
       ]);
 
       const metadata = api.spreadsheets.values.append.mock.calls[2][0].resource
         .values as string[][];
+      expect(metadata[1][0]).toBe("Date");
+      expect(metadata[1][1]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(metadata[3]).toEqual(["Match ID", sheetName]);
       expect(metadata[4]).toEqual(["Match Number", "7"]);
 
@@ -262,7 +356,7 @@ describe("common/utils", () => {
 
       expect(api.spreadsheets.values.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          range: "Sheet 1!D2:N2",
+          range: buildSheetRange("Sheet 1", "D2:N2"),
           valueInputOption: "USER_ENTERED",
         })
       );
@@ -318,9 +412,9 @@ describe("common/utils", () => {
           resource: {
             valueInputOption: "USER_ENTERED",
             data: [
-              { range: `${sheetName}!F2`, values: [["1"]] },
-              { range: `${sheetName}!F3`, values: [["1"]] },
-              { range: `${sheetName}!F4`, values: [["2"]] },
+              { range: buildSheetRange(sheetName, "F2"), values: [["1"]] },
+              { range: buildSheetRange(sheetName, "F3"), values: [["1"]] },
+              { range: buildSheetRange(sheetName, "F4"), values: [["2"]] },
             ],
           },
         })
@@ -499,8 +593,16 @@ describe("common/utils", () => {
       const result = computeAggregateStats(matches);
 
       expect(result.trendData).toEqual([
-        { label: "20 Feb #1", cleanTakesPct: 50, cleanThrowInsPct: 40 },
-        { label: "1 Mar #2", cleanTakesPct: null, cleanThrowInsPct: 60 },
+        {
+          label: "2025-02-20 - Match 1",
+          cleanTakesPct: 50,
+          cleanThrowInsPct: 40,
+        },
+        {
+          label: "2025-03-01 - Match 2",
+          cleanTakesPct: null,
+          cleanThrowInsPct: 60,
+        },
       ]);
 
       expect(result.averages).toEqual({

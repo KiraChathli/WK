@@ -2,8 +2,10 @@ import type {
   AggregateRangeOption,
   BallEntry,
   MatchAggregateData,
+  MatchInfo,
   MatchStats,
 } from "../../../common/types";
+import { parseMatchIdentity } from "../../../common/utils";
 
 export const getSheetsForSelectedRange = (
   sheetNames: string[],
@@ -18,16 +20,16 @@ export const getUncachedSheets = (
 
 export const buildMatchAggregateData = (
   sheetName: string,
+  info: MatchInfo,
   stats: MatchStats,
   balls: BallEntry[]
 ): MatchAggregateData => {
-  const matchNumberMatch = sheetName.match(/Match (\d+)/);
-  const dateMatch = sheetName.match(/^(\d{4}-\d{2}-\d{2})/);
+  const matchIdentity = parseMatchIdentity(sheetName, info);
 
   return {
     sheetName,
-    date: dateMatch ? dateMatch[1] : "",
-    matchNumber: matchNumberMatch ? parseInt(matchNumberMatch[1], 10) : 1,
+    date: matchIdentity.date ?? "",
+    matchNumber: matchIdentity.matchNumber ?? 1,
     stats,
     balls,
   };

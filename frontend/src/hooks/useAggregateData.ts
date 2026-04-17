@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { listSheetNames, readMatchInfo, readBallData } from "../api/sheets";
+import { listMatches, readMatchInfo, readBallData } from "../api/sheets";
 import { computeAggregateStats } from "../../../common/utils";
 import type {
     AggregateRangeOption,
@@ -47,9 +47,12 @@ export const useAggregateData = (isSignedIn: boolean) => {
 
         setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-        listSheetNames()
-            .then((names) => {
-                setState((prev) => ({ ...prev, sheetNames: names }));
+        listMatches()
+            .then((matches) => {
+                setState((prev) => ({
+                    ...prev,
+                    sheetNames: matches.map((match) => match.sheetName),
+                }));
             })
             .catch((err) => {
                 console.error("Error listing sheets:", err);
@@ -111,7 +114,12 @@ export const useAggregateData = (isSignedIn: boolean) => {
                 readBallData(sheetName),
             ]);
 
-            return buildMatchAggregateData(sheetName, metaResult.stats, ballResult);
+            return buildMatchAggregateData(
+                sheetName,
+                metaResult.info,
+                metaResult.stats,
+                ballResult
+            );
         });
 
         Promise.allSettled(fetchPromises)

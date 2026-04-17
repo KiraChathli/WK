@@ -2,6 +2,7 @@ import {
   type AggregateDeliveryPositionCell,
   type BallEntry,
   type MatchAggregateData,
+  type MatchSummary,
   type AggregateChartData,
   type AggregateAverages,
   type BowlerType,
@@ -18,6 +19,155 @@ import {
 import { SHEET_EMPTY_VALUE, SAMPLE_DATA_PREFIX } from "./consts.ts";
 
 const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapedSamplePrefix = escapeRegExp(SAMPLE_DATA_PREFIX);
+const LEGACY_MATCH_NAME_REGEX = new RegExp(
+  `^(?:${escapedSamplePrefix} )?(\\d{4}-\\d{2}-\\d{2}) - Match (\\d+)$`
+);
+const LEGACY_MATCH_LABEL_REGEX = new RegExp(
+  `^(?:${escapedSamplePrefix} )?(\\d{4})-(\\d{2})-(\\d{2}) - Match (\\d+)$`
+);
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+const localIsoDateFromDate = (date: Date): string =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const isValidYmdDate = (year: number, month: number, day: number): boolean => {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+const toIsoDate = (year: number, month: number, day: number): string | null => {
+  if (!isValidYmdDate(year, month, day)) return null;
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+};
+
+const parseIsoDate = (value: string | undefined): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return toIsoDate(Number(match[1]), Number(match[2]), Number(match[3]));
+};
+
+const parseLooseDateToIso = (value: string | undefined): string | null => {
+  const isoDate = parseIsoDate(value);
+  if (isoDate) return isoDate;
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const numericMatch = trimmed.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (numericMatch) {
+    const first = Number(numericMatch[1]);
+    const second = Number(numericMatch[2]);
+    const year = Number(numericMatch[3]);
+
+    if (first > 12 && second <= 12) {
+      return toIsoDate(year, second, first);
+    }
+
+    if (second > 12 && first <= 12) {
+      return toIsoDate(year, first, second);
+    }
+
+    // Ambiguous numeric dates (e.g. 03/04/2025) intentionally return null.
+    // The caller can fallback to Match ID / sheet-name parsing.
+    return null;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return localIsoDateFromDate(parsed);
+};
+
+const parsePositiveInt = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const parseLegacyMatchName = (
+  value: string | undefined
+): { date: string; matchNumber: number; isSample: boolean } | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(LEGACY_MATCH_NAME_REGEX);
+  if (!match) return null;
+
+  const date = parseIsoDate(match[1]);
+  const matchNumber = parsePositiveInt(match[2]);
+  if (!date || matchNumber === null) return null;
+
+  return {
+    date,
+    matchNumber,
+    isSample: trimmed.startsWith(`${SAMPLE_DATA_PREFIX} `),
+  };
+};
+
+const compareNullableNumbersDesc = (
+  a: number | null,
+  b: number | null
+): number => {
+  if (a !== null && b !== null) {
+    if (a === b) return 0;
+    return b - a;
+  }
+  if (a !== null) return -1;
+  if (b !== null) return 1;
+  return 0;
+};
+
+const compareNullableIsoDatesDesc = (
+  a: string | null,
+  b: string | null
+): number => {
+  if (a && b) {
+    if (a === b) return 0;
+    return a < b ? 1 : -1;
+  }
+  if (a) return -1;
+  if (b) return 1;
+  return 0;
+};
+
+export const quoteSheetNameForA1 = (sheetName: string): string =>
+  `'${sheetName.replace(/'/g, "''")}'`;
+
+export const buildSheetRange = (sheetName: string, a1Range: string): string =>
+  `${quoteSheetNameForA1(sheetName)}!${a1Range}`;
+
+export const parseMatchIdentity = (
+  sheetName: string,
+  info: Record<string, string> = {}
+): MatchSummary => {
+  const metadataDate = parseLooseDateToIso(info["Date"]);
+  const metadataMatchNumber = parsePositiveInt(info["Match Number"]);
+  const matchId = info["Match ID"]?.trim();
+
+  const parsedFromMatchId = parseLegacyMatchName(matchId);
+  const parsedFromSheetName = parseLegacyMatchName(sheetName);
+
+  return {
+    sheetName,
+    date: metadataDate ?? parsedFromMatchId?.date ?? parsedFromSheetName?.date ?? null,
+    matchNumber:
+      metadataMatchNumber ??
+      parsedFromMatchId?.matchNumber ??
+      parsedFromSheetName?.matchNumber ??
+      null,
+    isSample:
+      Boolean(parsedFromMatchId?.isSample) ||
+      Boolean(parsedFromSheetName?.isSample),
+  };
+};
 
 /**
  * Converts a 0-based column index to A1 notation letter (e.g., 0 -> A, 25 -> Z, 26 -> AA)
@@ -49,7 +199,7 @@ export const logMultipleBallsToSheet = async (
 
   const appendRequest = {
     spreadsheetId,
-    range: `${sheetName}!D2`,
+    range: buildSheetRange(sheetName, "D2"),
     valueInputOption: "USER_ENTERED",
     ...(!isLocal && { resource: { values } }),
     ...(isLocal && { requestBody: { values } }),
@@ -85,7 +235,7 @@ const createNewSheetWithMetadata = async (
     // 2. Data Headers (D1)
     await googleSheetsApi.spreadsheets.values.append({
         spreadsheetId,
-        range: `${sheetName}!D1`,
+        range: buildSheetRange(sheetName, "D1"),
         valueInputOption: "USER_ENTERED",
         resource: { values: [SHEET_HEADERS] }
     });
@@ -95,7 +245,7 @@ const createNewSheetWithMetadata = async (
     const matchNumber = matchNumberMatch ? matchNumberMatch[1] : "1";
     const metadata = [
         ["Match Info", ""],
-        ["Date", new Date().toLocaleDateString()],
+        ["Date", localIsoDateFromDate(new Date())],
         ["Start Time", new Date().toLocaleTimeString()],
         ["Match ID", sheetName],
         ["Match Number", matchNumber],
@@ -105,7 +255,7 @@ const createNewSheetWithMetadata = async (
 
     await googleSheetsApi.spreadsheets.values.append({
         spreadsheetId,
-        range: `${sheetName}!A1`,
+        range: buildSheetRange(sheetName, "A1"),
         valueInputOption: "USER_ENTERED",
         resource: { values: metadata }
     });
@@ -114,7 +264,7 @@ const createNewSheetWithMetadata = async (
     const formulas = generateStatsFormulas();
     await googleSheetsApi.spreadsheets.values.append({
         spreadsheetId,
-        range: `${sheetName}!A${metadata.length + 1}`,
+        range: buildSheetRange(sheetName, `A${metadata.length + 1}`),
         valueInputOption: "USER_ENTERED",
         resource: { values: formulas }
     });
@@ -180,7 +330,7 @@ export const updateBallInSheet = async (
 
   await googleSheetsApi.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetName}!D${sheetRow}:${endCol}${sheetRow}`,
+    range: buildSheetRange(sheetName, `D${sheetRow}:${endCol}${sheetRow}`),
     valueInputOption: "USER_ENTERED",
     resource: { values },
   });
@@ -254,7 +404,7 @@ export const deleteBallFromSheet = async (
 
     nonExtraCount++;
     renumberData.push({
-      range: `${sheetName}!${ballColumn}${newSheetRow}`,
+      range: buildSheetRange(sheetName, `${ballColumn}${newSheetRow}`),
       values: [[nonExtraCount.toString()]],
     });
 
@@ -282,7 +432,7 @@ export const readBallData = async (
   try {
     const response = await googleSheetsApi.spreadsheets.values.get({
         spreadsheetId,
-        range: `${sheetName}!D2:Z`, // Data starts at D2
+        range: buildSheetRange(sheetName, "D2:Z"), // Data starts at D2
     });
 
     // Handle differences between nodejs googleapis (data.values) and browser gapi (result.values)
@@ -322,7 +472,7 @@ export const readMatchInfo = async (
     try {
         const response = await googleSheetsApi.spreadsheets.values.get({
             spreadsheetId,
-            range: `${sheetName}!A:B`,
+            range: buildSheetRange(sheetName, "A:B"),
         });
 
         const values = response.result
@@ -504,41 +654,70 @@ export const getEnvVar = (key: string): string => {
 };
 
 /**
- * Lists all sheet names in the spreadsheet that match the match naming convention,
- * sorted reverse-chronologically (most recent first).
+ * Lists match sheets with metadata-derived identity and stable date sorting.
+ * Date/number come from metadata first and fallback to legacy match naming.
  */
-export const listSheetNames = async (
-    googleSheetsApi: any
-): Promise<string[]> => {
-    const spreadsheetId = getEnvVar("SPREADSHEET_ID");
-    const response = await googleSheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: "sheets.properties.title",
+export const listMatches = async (
+  googleSheetsApi: any
+): Promise<MatchSummary[]> => {
+  const spreadsheetId = getEnvVar("SPREADSHEET_ID");
+  const response = await googleSheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties.title",
+  });
+
+  const sheets = response.result ? response.result.sheets : response.data.sheets;
+  if (!sheets) return [];
+
+  const titles = sheets
+    .map((sheet: any) => sheet.properties?.title)
+    .filter((title: unknown): title is string => typeof title === "string");
+
+  const parsed = await Promise.all(
+    titles.map(async (sheetName: string) => {
+      const metadata = await readMatchInfo(googleSheetsApi, sheetName);
+      const matchIdentity = parseMatchIdentity(sheetName, metadata.info);
+      const hasMatchMetadata = Boolean(
+        metadata.info["Match ID"] || metadata.info["Match Number"]
+      );
+      const isLegacyNameMatch = LEGACY_MATCH_NAME_REGEX.test(sheetName);
+
+      if (!hasMatchMetadata && !isLegacyNameMatch) {
+        return null;
+      }
+
+      return matchIdentity;
+    })
+  );
+
+  return parsed
+    .filter((match): match is MatchSummary => match !== null)
+    .sort((a, b) => {
+      const dateComparison = compareNullableIsoDatesDesc(a.date, b.date);
+      if (dateComparison !== 0) return dateComparison;
+
+      const matchNumberComparison = compareNullableNumbersDesc(
+        a.matchNumber,
+        b.matchNumber
+      );
+      if (matchNumberComparison !== 0) return matchNumberComparison;
+
+      return a.sheetName.localeCompare(b.sheetName);
     });
+};
 
-    const sheets = response.result
-        ? response.result.sheets
-        : response.data.sheets;
-
-    if (!sheets) return [];
-
-    const escapedPrefix = escapeRegExp(SAMPLE_DATA_PREFIX);
-    const regex = new RegExp(`^(?:${escapedPrefix} )?\\d{4}-\\d{2}-\\d{2} - Match \\d+$`);
-
-    return sheets
-        .map((s: any) => s.properties.title)
-        .filter((title: string) => regex.test(title))
-        .sort()
-        .reverse(); // Most recent first
+export const listSheetNames = async (
+  googleSheetsApi: any
+): Promise<string[]> => {
+  const matches = await listMatches(googleSheetsApi);
+  return matches.map((match) => match.sheetName);
 };
 
 /**
  * Converts a sheet name like "2025-02-20 - Match 1" to a short label like "20 Feb #1"
  */
 export const formatShortMatchLabel = (sheetName: string): string => {
-    const escapedPrefix = escapeRegExp(SAMPLE_DATA_PREFIX);
-    const regex = new RegExp(`^(?:${escapedPrefix} )?(\\d{4})-(\\d{2})-(\\d{2}) - Match (\\d+)$`);
-    const match = sheetName.match(regex);
+    const match = sheetName.match(LEGACY_MATCH_LABEL_REGEX);
     if (!match) return sheetName;
     const [, , monthStr, day, num] = match;
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -590,7 +769,7 @@ export const computeAggregateStats = (
 ): AggregateChartData => {
     // 1. Build per-match trend data
     const trendData = matches.map((m) => ({
-        label: formatShortMatchLabel(m.sheetName),
+        label: m.sheetName,
         cleanTakesPct: parseNullableNumber(m.stats["Clean Takes %"]),
         cleanThrowInsPct: parseNullableNumber(m.stats["Clean Throw Ins %"]),
     }));

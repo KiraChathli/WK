@@ -3,7 +3,7 @@ import { Alert, Card, Col, Container, Row, Spinner } from "react-bootstrap";
 import Header from "../layout/Header";
 import { readBallData, readMatchInfo } from "../../api/sheets";
 import { useAggregateData } from "../../hooks/useAggregateData";
-import { computeAggregateStats } from "../../../../common/utils";
+import { computeAggregateStats, parseMatchIdentity } from "../../../../common/utils";
 import type {
   AggregateChartData,
   BallEntry,
@@ -56,13 +56,12 @@ const VisualisePage = ({
 
     Promise.all([readMatchInfo(matchId), readBallData(matchId)])
       .then(([meta, balls]) => {
-        const matchNumberMatch = matchId.match(/Match (\d+)/);
-        const dateMatch = matchId.match(/(\d{4}-\d{2}-\d{2})/);
+        const matchIdentity = parseMatchIdentity(matchId, meta.info);
 
         const currentMatch: MatchAggregateData = {
           sheetName: matchId,
-          date: dateMatch ? dateMatch[1] : "",
-          matchNumber: matchNumberMatch ? parseInt(matchNumberMatch[1], 10) : 1,
+          date: matchIdentity.date ?? "",
+          matchNumber: matchIdentity.matchNumber ?? 1,
           stats: meta.stats,
           balls,
         };

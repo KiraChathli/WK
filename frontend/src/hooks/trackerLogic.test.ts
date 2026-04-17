@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BallEntry, SelectionState } from "../../../common/types";
+import type { BallEntry, MatchSummary, SelectionState } from "../../../common/types";
 import {
   EMPTY_SELECTIONS,
   buildQuickNoTouchSelections,
@@ -13,6 +13,7 @@ import {
   getResumeStepIndex,
   getVisiblePagesFor,
   parseMatchFromSearch,
+  resolveMatchSheetName,
 } from "./trackerLogic";
 
 const makeBall = (
@@ -95,6 +96,59 @@ describe("trackerLogic", () => {
       });
       expect(parseMatchFromSearch("?match=bad-value")).toBeNull();
       expect(parseMatchFromSearch("?other=2025-03-01-2")).toBeNull();
+    });
+  });
+
+  describe("match sheet resolution", () => {
+    it("resolves renamed sheets by metadata date + match number", () => {
+      const matches: MatchSummary[] = [
+        {
+          sheetName: "Training Session (renamed)",
+          date: "2025-03-01",
+          matchNumber: 2,
+          isSample: false,
+        },
+      ];
+
+      expect(resolveMatchSheetName(matches, "2025-03-01", 2)).toEqual({
+        sheetName: "Training Session (renamed)",
+        isSample: false,
+      });
+    });
+
+    it("prefers non-sample sheets when both sample and real exist", () => {
+      const matches: MatchSummary[] = [
+        {
+          sheetName: "[SAMPLE] 2025-03-01 - Match 2",
+          date: "2025-03-01",
+          matchNumber: 2,
+          isSample: true,
+        },
+        {
+          sheetName: "My Renamed Match",
+          date: "2025-03-01",
+          matchNumber: 2,
+          isSample: false,
+        },
+      ];
+
+      expect(resolveMatchSheetName(matches, "2025-03-01", 2)).toEqual({
+        sheetName: "My Renamed Match",
+        isSample: false,
+      });
+    });
+
+    it("returns null when there is no matching date + match number", () => {
+      const matches: MatchSummary[] = [
+        {
+          sheetName: "Some Match",
+          date: "2025-03-01",
+          matchNumber: 1,
+          isSample: false,
+        },
+      ];
+
+      expect(resolveMatchSheetName(matches, "2025-03-01", 3)).toBeNull();
     });
   });
 

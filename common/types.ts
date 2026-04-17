@@ -159,6 +159,13 @@ export type MatchAggregateData = {
   balls: BallEntry[];
 };
 
+export type MatchSummary = {
+  sheetName: string;
+  date: string | null;
+  matchNumber: number | null;
+  isSample: boolean;
+};
+
 export type MatchRangeOption = "current" | 5 | 10 | 20 | "all";
 export type AggregateRangeOption = Exclude<MatchRangeOption, "current">;
 

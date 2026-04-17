@@ -1,5 +1,6 @@
 import type {
   BallEntry,
+  MatchSummary,
   OverCount,
   PageType,
   SelectionState,
@@ -146,6 +147,21 @@ export const parseMatchFromSearch = (
   const parts = match.match(/^(\d{4}-\d{2}-\d{2})-(\d+)$/);
   if (!parts) return null;
   return { date: parts[1], number: parseInt(parts[2], 10) };
+};
+
+export const resolveMatchSheetName = (
+  matches: MatchSummary[],
+  date: string,
+  matchNumber: number
+): { sheetName: string; isSample: boolean } | null => {
+  const candidates = matches.filter(
+    (match) => match.date === date && match.matchNumber === matchNumber
+  );
+
+  if (candidates.length === 0) return null;
+
+  const preferred = candidates.find((match) => !match.isSample) ?? candidates[0];
+  return { sheetName: preferred.sheetName, isSample: preferred.isSample };
 };
 
 export const formatMatchDisplay = (
